@@ -3,9 +3,12 @@ on:
   workflow_dispatch:
   push:
     branches: [mac]
-    paths: [setup.sh, requirements.txt, zitto/engine.py, .github/workflows/separation.yml]
+    paths: [setup.sh, requirements.txt, zitto/engine.py, tests/separation.py, tests/watched.sh, .github/workflows/separation.yml]
 permissions:
   contents: read
+defaults:
+  run:
+    shell: bash
 jobs:
   separation:
     runs-on: macos-15
@@ -21,51 +24,22 @@ jobs:
       - name: What there is
         run: |
           .venv/bin/python -m pip check || true
+          sysctl hw.memsize hw.ncpu machdep.cpu.brand_string vm.swapusage
           .venv/bin/python -c "import torch, platform; print(platform.machine(), platform.mac_ver()[0], 'torch', torch.__version__, 'mps', torch.backends.mps.is_available())"
           .venv/bin/zitto --version
-      - name: A generated song
-        run: |
-          .venv/bin/python - <<'PY'
-          import numpy as np, soundfile as sf
-          r, t = 44100, np.arange(44100 * 20) / 44100
-          rng = np.random.default_rng(1)
-          x = 0.2 * np.sin(2 * np.pi * 110 * t) + 0.15 * np.sin(2 * np.pi * 330 * t) * np.sin(np.pi * t) ** 2
-          x += rng.normal(0, 0.2, len(t)) * np.exp(-((t % 0.5) / 0.06))
-          sf.write("song.wav", np.repeat(x[:, None] * 0.6, 2, 1).astype("float32"), r)
-          PY
-      - name: Separation, as the window does it
-        run: |
-          cat > separate.py <<'PY'
-          import sys, time
-          from pathlib import Path
-          import numpy as np, soundfile as sf
-          from zitto import audio, engine, library, models, settings, worker
-          library.ROOT, settings.PATH = Path("ci_library"), Path("ci_settings.json")
-          work = Path("ci_work"); work.mkdir(exist_ok=True)
-          song = library.add("song.wav")
-          start = time.time()
-          eng = engine.Engine()
-          worker.prepare(song, eng, work.resolve(), lambda s: print("%6.1f s  %s" % (time.time() - start, s), flush=True))
-          s = library.load_stems(song.key)
-          mix = sf.read("song.wav", dtype="float32", always_2d=True)[0]
-          total = sum(d.astype(np.float64) for d in s.data) / 32768 * s.gain
-          print(models.current().main[0].name, s.names == models.stems(), "error of the sum %.5f" % np.abs(total - mix).max())
-          assert np.abs(total - mix).max() < 1e-3
-          PY
-          .venv/bin/python -P separate.py 2> err.txt || (tail -30 err.txt; exit 1)
-      - name: The lead voice model
+      - name: The models
+        timeout-minutes: 12
+        run: ./tests/watched.sh 600 .venv/bin/python -X faulthandler -P tests/separation.py models
+      - name: Separation on the CPU
+        timeout-minutes: 25
+        run: ./tests/watched.sh 1200 .venv/bin/python -X faulthandler -P tests/separation.py cpu
+      - name: A little work on the GPU
         if: always()
-        run: |
-          cat > lead.py <<'PY'
-          import time
-          from pathlib import Path
-          import numpy as np, soundfile as sf
-          from zitto import engine, models
-          x = sf.read("song.wav", dtype="float32", always_2d=True)[0]
-          e = engine.Engine(); work = Path("ci_work").resolve(); work.mkdir(exist_ok=True)
-          start = time.time(); out = e.stems(x, models.LEAD, ["lead"], work)["lead"]
-          print("lead", out.shape, bool(np.isfinite(out).all()), "%.0f s with the download" % (time.time() - start))
-          start = time.time(); e.stems(x, models.LEAD, ["lead"], work)
-          print("again %.0f s for 20 s" % (time.time() - start))
-          PY
-          .venv/bin/python -P lead.py 2> err.txt || (tail -30 err.txt; exit 1)
+        timeout-minutes: 4
+        run: ./tests/watched.sh 150 .venv/bin/python -X faulthandler -P tests/separation.py gpu
+      # The Macs of GitHub are virtual, and so is their GPU: what happens here says little of a real one.
+      - name: Separation on the GPU
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 12
+        run: ./tests/watched.sh 600 .venv/bin/python -X faulthandler -P tests/separation.py mps
