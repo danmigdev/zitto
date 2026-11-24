@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -13,6 +14,8 @@ from .models import Model
 from .settings import HOME
 
 MODELS_DIR = HOME / "models"
+# What torch cannot do on the GPU of a Mac is done on the CPU, instead of failing. Read when it is imported.
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 OPEN_UNMIX_TARGETS = ("vocals", "drums", "bass", "other")
 PIECE, FADE = 60 * RATE, 2 * RATE
 
