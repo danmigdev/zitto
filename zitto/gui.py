@@ -58,6 +58,8 @@ class App:
         root.columnconfigure(1, weight=1)
         root.rowconfigure(0, weight=1)
         root.protocol("WM_DELETE_WINDOW", self.close)
+        if MAC:  # Quit, in the menu: without this it ends the program at once, leaving the worker behind
+            root.createcommand("::tk::mac::Quit", self.close)
         self._build_list()
         self.player = PlayerView(root, self.k)
         self.player.grid(row=0, column=1, sticky="nsew")

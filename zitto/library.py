@@ -24,11 +24,11 @@ import numpy as np
 import soundfile as sf
 
 from .audio import RATE
-from .settings import read, write
+from .settings import HOME, read, write
 from .source import (SourceError, Status, Track, digest, file_credits, full_name, get_track, is_url, link_source,
                      need_link_source)
 
-ROOT = Path(os.environ.get("ZITTO_LIBRARY") or Path(__file__).resolve().parent.parent / "library")
+ROOT = Path(os.environ.get("ZITTO_LIBRARY") or HOME / "library")
 
 _last_order = 0.0
 

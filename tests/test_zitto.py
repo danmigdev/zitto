@@ -1,14 +1,17 @@
 """Unit tests: no GPU, models or network. The ffmpeg round trip needs ffmpeg on PATH."""
 
+import os
+import subprocess
 import sys
+from pathlib import Path
 from types import ModuleType
 
 import numpy as np
 import pytest
 
-from zitto import audio, remover, source
+from zitto import audio, remover, source, worker
 from zitto.engine import Engine
-from zitto.models import FULL, LEAD
+from zitto.models import DEFAULT, DRUMS, FULL, LEAD, STATED, WIND
 from zitto.targets import UnknownTarget, plan, resolve
 
 
@@ -75,10 +78,10 @@ def test_different_models_run_in_cascade(tmp_path):
     np.testing.assert_allclose(rest, 0.1, rtol=1e-5)
 
 
-@pytest.mark.parametrize("cuda", [True, False])
-def test_reduced_precision_only_on_the_gpu(tmp_path, monkeypatch, cuda):
-    # On a CPU that cannot compute it, the wind model does not finish.
-    given = {}
+@pytest.fixture
+def separator(monkeypatch):
+    """In place of audio-separator and torch: what they were given."""
+    given = {"downloaded": [], "cuda": False}
 
     class Separator:
         def __init__(self, **options):
@@ -87,14 +90,55 @@ def test_reduced_precision_only_on_the_gpu(tmp_path, monkeypatch, cuda):
         def load_model(self, file):
             given["file"] = file
 
+        def download_model_files(self, file):
+            if file == given.get("broken"):
+                raise RuntimeError("no network")
+            given["downloaded"].append(file)
+
     torch, package, inner = ModuleType("torch"), ModuleType("audio_separator"), ModuleType("audio_separator.separator")
     torch.cuda = ModuleType("torch.cuda")
-    torch.cuda.is_available = lambda: cuda
+    torch.cuda.is_available = lambda: given["cuda"]
     inner.Separator = Separator
     for name, module in (("torch", torch), ("audio_separator", package), ("audio_separator.separator", inner)):
         monkeypatch.setitem(sys.modules, name, module)
+    return given
+
+
+@pytest.mark.parametrize("cuda", [True, False])
+def test_reduced_precision_only_on_the_gpu(tmp_path, separator, cuda):
+    # On a CPU that cannot compute it, the wind model does not finish.
+    separator["cuda"] = cuda
     Engine(tmp_path)._load(FULL, tmp_path)
-    assert given["file"] == FULL.file and given["use_autocast"] is cuda
+    assert separator["file"] == FULL.file and separator["use_autocast"] is cuda
+
+
+def test_all_the_models_can_be_downloaded_before_they_are_needed(separator, capsys):
+    assert worker.download() == worker.DONE
+    assert separator["downloaded"] == [FULL.file, LEAD.file, WIND.file, DRUMS.file]
+    assert f"Model 4 of 4: {DRUMS.name}" in capsys.readouterr().out
+    assert None not in STATED.all() and len(STATED.all()) == 4 and len(DEFAULT.all()) == 4
+
+
+def test_a_model_that_cannot_be_downloaded(separator, capsys):
+    separator["broken"] = LEAD.file
+    assert worker.download() != worker.DONE
+    assert separator["downloaded"] == [FULL.file] and "no network" in capsys.readouterr().out
+
+
+def test_where_everything_is_kept(tmp_path):
+    code = ("from zitto import cli, engine, library, settings; "
+            "print(engine.MODELS_DIR, library.ROOT, settings.PATH, cli.DEFAULT_OUT, sep='\\n')")
+
+    def places(**added):
+        env = {k: v for k, v in os.environ.items() if not k.startswith("ZITTO_")} | added
+        out = subprocess.run([sys.executable, "-P", "-c", code], env=env, capture_output=True, text=True, check=True)
+        return [Path(line) for line in out.stdout.splitlines()]
+
+    here, files = Path(audio.__file__).resolve().parent.parent, ("models", "library", "settings.json", "output")
+    assert places() == [here / f for f in files]
+    assert places(ZITTO_HOME=str(tmp_path)) == [tmp_path / f for f in files]
+    assert places(ZITTO_HOME=str(tmp_path), ZITTO_LIBRARY=str(tmp_path / "l"), ZITTO_OUTPUT=str(tmp_path / "o")) == [
+        tmp_path / f for f in ("models", "l", "settings.json", "o")]
 
 
 def test_silence_does_not_reach_the_engine(tmp_path):

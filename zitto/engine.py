@@ -10,8 +10,9 @@ import numpy as np
 
 from .audio import RATE, read_wav, write_wav
 from .models import Model
+from .settings import HOME
 
-MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+MODELS_DIR = HOME / "models"
 OPEN_UNMIX_TARGETS = ("vocals", "drums", "bass", "other")
 PIECE, FADE = 60 * RATE, 2 * RATE
 
@@ -31,6 +32,15 @@ class Engine:
             place = self._models_dir / "checkpoints"
             return all(any(place.glob(f"{target}-*.pth")) for target in OPEN_UNMIX_TARGETS)
         return (self._models_dir / model.file).is_file()
+
+    def download(self, model: Model) -> None:
+        """Download a model now, instead of the first time it is needed. Does nothing if it is there."""
+        if model.backend == "openunmix":
+            self._open_unmix_network(model)
+        else:
+            from audio_separator.separator import Separator
+
+            Separator(log_level=self._level, model_file_dir=str(self._models_dir)).download_model_files(model.file)
 
     def _load(self, model: Model, workdir: Path):
         """A model on the GPU. It stays in memory as long as the same folder is used."""
@@ -116,21 +126,24 @@ class Engine:
             result[part] = _fit(stem, len(audio))
         return result
 
+    def _open_unmix_network(self, model: Model):
+        try:
+            import openunmix
+            import torch
+
+            torch.hub.set_dir(str(self._models_dir))  # where the weights are downloaded
+            # All its targets, also when fewer are wanted: they are estimated together.
+            return getattr(openunmix, model.file)(targets=list(OPEN_UNMIX_TARGETS), device="cpu")
+        except Exception as e:
+            raise EngineError(f"Could not load {model.name}: {e}") from e
+
     def _open_unmix(self, audio: np.ndarray, model: Model, parts: list[str], workdir: Path) -> dict[str, np.ndarray]:
         import torch
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         network = self._loaded.get((model, workdir))
         if network is None:
-            try:
-                import openunmix
-
-                torch.hub.set_dir(str(self._models_dir))  # where the weights are downloaded
-                # All its targets, also when fewer are wanted: they are estimated together.
-                network = getattr(openunmix, model.file)(targets=list(OPEN_UNMIX_TARGETS), device="cpu")
-            except Exception as e:
-                raise EngineError(f"Could not load {model.name}: {e}") from e
-            self._loaded[model, workdir] = network
+            network = self._loaded[model, workdir] = self._open_unmix_network(model)
         network.to(device)
         rows = [list(network.target_models).index(model.parts[part]) for part in parts]
 

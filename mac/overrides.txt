@@ -1,0 +1,4 @@
+# Left out. diffq is only for non-commercial use, needs a compiler, and only serves Demucs, which zitto
+# does not use. The old versions of onnx-weekly are removed, so a copy of zitto would stop installing.
+diffq; sys_platform == "never"
+onnx-weekly; sys_platform == "never"

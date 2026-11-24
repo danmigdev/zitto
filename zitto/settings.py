@@ -7,7 +7,9 @@ import os
 import time
 from pathlib import Path
 
-PATH = Path(__file__).resolve().parent.parent / "settings.json"
+# Where everything is kept: the folder of the program, or for the app of the Mac one of the user.
+HOME = Path(os.environ.get("ZITTO_HOME") or Path(__file__).resolve().parent.parent)
+PATH = HOME / "settings.json"
 
 
 def read(path: Path) -> dict:

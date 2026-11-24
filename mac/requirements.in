@@ -1,0 +1,12 @@
+# What the app for the Mac installs: the libraries of requirements.txt, torch, ffmpeg, and the onnx
+# that takes the place of onnx-weekly (see overrides.txt). To choose the versions again, in this folder:
+#   MACOSX_DEPLOYMENT_TARGET=14.0 uv pip compile requirements.in --override overrides.txt --no-annotate
+#     --python-platform aarch64-apple-darwin --python-version 3.12 --generate-hashes
+#     --only-binary :all: -o requirements.txt
+# As in setup.sh: on a Mac audio-separator needs torch 2.13 or newer.
+-r ../requirements.txt
+torch==2.15.0
+torchvision==0.29.2
+torchaudio==2.11.0
+imageio-ffmpeg==0.8.1
+onnx==1.23.2

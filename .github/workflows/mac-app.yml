@@ -1,0 +1,40 @@
+name: app for the Mac
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, mac-app]
+    paths: [mac/**, zitto/**, requirements.txt, pyproject.toml, tests/mac_app.sh, .github/workflows/mac-app.yml]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - run: ./mac/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: build/mac/*.dmg
+          if-no-files-found: error
+  first-open:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          name: dmg
+      - run: ./tests/mac_app.sh *.dmg
+        timeout-minutes: 55
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shots-${{ matrix.os }}
+          path: shots

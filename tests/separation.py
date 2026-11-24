@@ -33,8 +33,7 @@ def download():
 
     from zitto import engine, models
     separator = Separator(model_file_dir=str(engine.MODELS_DIR))
-    default = models.current()
-    for model in (*default.main, default.lead, default.wind, default.drums):
+    for model in models.current().all():
         separator.download_model_files(model.file)
         say(model.name, "%.0f MB" % ((engine.MODELS_DIR / model.file).stat().st_size / 1e6))
 

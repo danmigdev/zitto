@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 from . import __version__, plugins
+from .settings import HOME
 from .targets import UnknownTarget, available, resolve
 
-DEFAULT_OUT = Path(__file__).resolve().parent.parent / "output"
+DEFAULT_OUT = Path(os.environ.get("ZITTO_OUTPUT") or HOME / "output")
 
 
 def build_parser() -> argparse.ArgumentParser:

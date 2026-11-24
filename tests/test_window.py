@@ -414,3 +414,13 @@ def test_a_lane_is_drawn_from_its_middle():
     assert pixels[:, 0].tolist() == [1, 1, 1, 1, 7, 1, 1, 1, 1]
     assert pixels[:, 1].tolist() == [2, 2, 7, 7, 7, 7, 7, 2, 2]
     assert pixels[:, 2].tolist() == [7] * 9
+
+
+@pytest.mark.skipif(not theme.MAC, reason="only the Mac has it")
+def test_quit_in_the_menu_closes_properly(window):
+    app, closed = window(), []
+    app.work.stop = lambda: closed.append("work")
+    app.root.destroy = lambda: closed.append("window")
+    app.root.tk.call("::tk::mac::Quit")
+    assert closed == ["work", "window"]
+    del app.root.destroy

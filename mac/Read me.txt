@@ -1,0 +1,23 @@
+zitto for the Mac (experimental)
+
+It needs an Apple Silicon Mac (M1 or newer), macOS 14 or newer, 7 GB free on the disk.
+
+1. Drag zitto onto Applications.
+
+2. Open it from there. This app is not signed with a paid Apple certificate, so the first time macOS
+   says that it could not verify it. Choose Done, then:
+       System Settings > Privacy & Security > at the bottom, "Open Anyway"
+   On macOS 14 you can also right-click zitto, then Open.
+
+3. The first time it downloads what it needs, about 3.5 GB: Python, the libraries, ffmpeg and the
+   separation models. Then it opens by itself. If you quit in the middle, the next time it goes on.
+
+Use it with recordings that you made, or that you have the right to use in this way. The terms of three
+of the four models are not known: see https://github.com/danmigdev/zitto#how-it-works
+
+To remove it: delete zitto from Applications, and in the Finder, Go > Go to Folder, delete
+    ~/Library/Application Support/zitto
+which also holds the songs separated so far.
+
+If you try it, please say how it went: https://github.com/danmigdev/zitto/issues
+zitto is under the PolyForm Noncommercial License 1.0.0.

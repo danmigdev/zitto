@@ -39,6 +39,9 @@ class ModelSet:
     wind: Model  # the wind instruments, in what is left
     drums: Model | None = None  # the pieces of the drums, inside the drums
 
+    def all(self) -> tuple[Model, ...]:
+        return (*self.main, self.lead, self.wind, *filter(None, [self.drums]))
+
 
 _UVR = {"terms": "MIT, with credit to UVR and its developers (as their README asks)",
         "page": "https://github.com/Anjok07/ultimatevocalremovergui"}

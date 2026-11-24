@@ -2,6 +2,7 @@
 
     python -m zitto.worker WORKDIR      prepare every waiting song, then end
     python -m zitto.worker --add LINK   put a playlist in the list
+    python -m zitto.worker --models     download the models now
 
 Prints one JSON object per line. Being a process of its own, it can be stopped at any time,
 the window never loads torch, and the GPU memory is free again when it ends.
@@ -134,10 +135,25 @@ def add(link: str) -> int:
         return 1
 
 
+def download() -> int:
+    from .engine import Engine
+    models, engine = current().all(), Engine()
+    for n, model in enumerate(models, 1):
+        emit("status", text=f"Model {n} of {len(models)}: {model.name}")
+        try:
+            engine.download(model)
+        except Exception as e:
+            emit("error", text=str(e) or type(e).__name__)
+            return 1
+    return DONE
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
     if sys.argv[1] == "--add":
         return add(sys.argv[2])
+    if sys.argv[1] == "--models":
+        return download()
     return work(Path(sys.argv[1]))
 
 
