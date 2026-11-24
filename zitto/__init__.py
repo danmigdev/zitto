@@ -1,3 +1,3 @@
 """Remove a voice or an instrument from an audio track."""
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
