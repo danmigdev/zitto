@@ -1,5 +1,6 @@
 """Drawing without the help of the system, and the buttons of the Mac: both work everywhere."""
 
+import gc
 import tkinter as tk
 
 import numpy as np
@@ -18,6 +19,8 @@ def root():
     root.geometry("300x200")
     yield root
     root.destroy()
+    del root
+    gc.collect()  # in this thread: see conftest.py
 
 
 def test_the_picture_is_shown(root):
