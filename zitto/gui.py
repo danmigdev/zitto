@@ -17,7 +17,7 @@ from .models import NAMES
 from .player import PlayerView, all_peaks
 from .source import LIST, SONG_IN_LIST, SourceError, is_url, kind, plain
 from .surface import keep_content_on_resize
-from .theme import ACCENT, BAD, BG, BUTTON, DIM, PANEL, TEXT
+from .theme import ACCENT, BAD, BG, BUTTON, DIM, MAC, PANEL, TEXT, font
 from .worker import BLOCKED, BUSY, DONE
 
 AUDIO_TYPES = [("Audio and video", "*.mp3 *.wav *.flac *.m4a *.ogg *.opus *.aac *.wma *.mp4 *.mkv *.webm"),
@@ -49,7 +49,7 @@ class App:
         self.rows: dict[str, list[str]] = {}  # song -> rows
         self.groups: dict[str, list[str]] = {}  # group -> songs shown
         self._search_later: str | None = None
-        self.k = root.winfo_fpixels("1i") / 96
+        self.k = theme.scale(root)
 
         theme.apply(root, self.k)
         root.title("zitto")
@@ -62,7 +62,7 @@ class App:
         self.player = PlayerView(root, self.k)
         self.player.grid(row=0, column=1, sticky="nsew")
         # Once it is on the screen: before that its outer frame does not exist.
-        root.bind("<Map>", lambda e: keep_content_on_resize(int(root.frame(), 16), self.player.winfo_id()))
+        root.bind("<Map>", lambda e: keep_content_on_resize(root, self.player))
         self._bind_keys()
         self.reload()
         self._tick()
@@ -89,10 +89,10 @@ class App:
 
         what = ", ".join([s.label for s in self.links] + ["or files"]) if self.links else "audio or video files"
         tk.Label(side, text=f"Add {what}", bg=PANEL, fg=DIM,
-                 font=("Segoe UI", 9), anchor="w").grid(row=0, column=0, sticky="ew", padx=gap, pady=(gap, 4))
+                 font=font(9), anchor="w").grid(row=0, column=0, sticky="ew", padx=gap, pady=(gap, 4))
         if self.links:
             self.entry = tk.Entry(side, bg=BUTTON, fg=TEXT, insertbackground=TEXT, relief="flat",
-                                  font=("Segoe UI", 10), highlightthickness=1, highlightbackground=BUTTON,
+                                  font=font(10), highlightthickness=1, highlightbackground=BUTTON,
                                   highlightcolor=ACCENT, selectbackground=ACCENT, selectforeground=BG)
             self.entry.grid(row=1, column=0, sticky="ew", padx=gap, ipady=self.px(5))
             self.entry.bind("<Return>", lambda e: self.add_entry())
@@ -105,10 +105,10 @@ class App:
 
         row = tk.Frame(side, bg=PANEL)
         row.grid(row=3, column=0, sticky="ew", padx=gap, pady=(0, self.px(8)))
-        tk.Label(row, text="Search", bg=PANEL, fg=DIM, font=("Segoe UI", 9)).pack(side="left", padx=(0, self.px(8)))
+        tk.Label(row, text="Search", bg=PANEL, fg=DIM, font=font(9)).pack(side="left", padx=(0, self.px(8)))
         self.query = tk.StringVar()
         self.search = tk.Entry(row, textvariable=self.query, bg=BUTTON, fg=TEXT, insertbackground=TEXT, relief="flat",
-                               font=("Segoe UI", 10), highlightthickness=1, highlightbackground=BUTTON,
+                               font=font(10), highlightthickness=1, highlightbackground=BUTTON,
                                highlightcolor=ACCENT, selectbackground=ACCENT, selectforeground=BG)
         self.search.pack(side="left", fill="x", expand=True, ipady=self.px(3))
         self.query.trace_add("write", lambda *a: self._search_soon())
@@ -126,7 +126,7 @@ class App:
         self.tree.tag_configure("todo", foreground=DIM)
         self.tree.tag_configure("failed", foreground=BAD)
         self.tree.tag_configure("open", foreground=ACCENT)
-        self.tree.tag_configure("group", font=("Segoe UI Semibold", 10))
+        self.tree.tag_configure("group", font=font(10, bold=True))
         self.tree.grid(row=0, column=0, sticky="nsew")
         bar = ttk.Scrollbar(box, orient="vertical", command=self.tree.yview, takefocus=0)
         bar.grid(row=0, column=1, sticky="ns")
@@ -135,25 +135,26 @@ class App:
         self.tree.bind("<Return>", lambda e: self.open_selected())
         self.tree.bind("<Delete>", lambda e: self.delete_selected())
         self.tree.bind("<F2>", lambda e: self.rename_selected())
-        self.tree.bind("<Button-3>", self._menu)
+        for click in ("<Button-2>", "<Control-Button-1>") if MAC else ("<Button-3>",):
+            self.tree.bind(click, self._menu)
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._explain())
 
         self.progress = ttk.Progressbar(side, maximum=100)
         self.progress.grid(row=5, column=0, sticky="ew", padx=gap, pady=(self.px(8), self.px(4)))
-        self.status = tk.Label(side, bg=PANEL, fg=DIM, font=("Segoe UI", 9), anchor="nw", justify="left",
+        self.status = tk.Label(side, bg=PANEL, fg=DIM, font=font(9), anchor="nw", justify="left",
                                height=3, wraplength=self.px(334))
         self.status.grid(row=6, column=0, sticky="ew", padx=gap, pady=(0, gap))
 
     def _bind_keys(self) -> None:
-        player = self.player
+        player, command = self.player, "Command" if MAC else "Control"
         keys = {"<space>": lambda: player.do("toggle"), "<Home>": lambda: player.do("rewind"),
                 "<Escape>": lambda: player.do("clear_loop"), "<Key-l>": player.toggle_loop,
-                "<Control-s>": player.save}
+                f"<{command}-s>": player.save}
         for i in range(len(NAMES)):
             keys[f"<Key-{i + 1}>"] = lambda i=i: player.toggle_main(i)
         for key, action in keys.items():
             self.root.bind(key, lambda e, action=action: None if isinstance(e.widget, tk.Entry) else action())
-        self.root.bind("<Control-f>", lambda e: (self.search.focus_set(), self.search.select_range(0, "end")))
+        self.root.bind(f"<{command}-f>", lambda e: (self.search.focus_set(), self.search.select_range(0, "end")))
 
     # --- list -------------------------------------------------------------
 

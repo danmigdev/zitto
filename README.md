@@ -1,8 +1,9 @@
 # zitto
 
 Separates songs into their parts, plays them with each part switched on and off live, and
-saves the song with the parts you want. Everything runs on your Windows computer, on the
-NVIDIA GPU when there is one. *Zitto* is Italian for "hush".
+saves the song with the parts you want. Everything runs on your computer, on the NVIDIA GPU when
+there is one. It is for Windows; on a Mac it is [experimental](#mac-experimental).
+*Zitto* is Italian for "hush".
 
 ![The window: songs on the left, the parts of the open one on the right](docs/images/player.png)
 
@@ -11,9 +12,26 @@ do with the result is your responsibility: see [Terms](#terms).
 
 ## Install
 
-Needs Python 3.12 in `C:\Python312` and ffmpeg on the PATH. Then run once:
+On Windows it needs Python 3.12 in `C:\Python312` and ffmpeg on the PATH. Then run once:
 
     .\setup.bat
+
+### Mac (experimental)
+
+Only with Apple Silicon (M1 or newer). **Nobody has tried it on a real Mac yet**: it is tested
+automatically on a virtual one, without a GPU, where it installs, opens and separates a song. How
+fast it is, how it sounds and how the window feels are not known. It is not in the releases.
+
+With [Homebrew](https://brew.sh), in a terminal:
+
+    xcode-select --install
+    brew install python@3.12 python-tk@3.12 ffmpeg
+    git clone https://github.com/danmigdev/zitto
+    cd zitto
+    ./setup.sh
+
+Then open `window.command`. Use Cmd where this page says Ctrl. If you try it, please
+[say how it went](https://github.com/danmigdev/zitto/issues).
 
 ## Use
 
@@ -126,7 +144,7 @@ share it for any non-commercial purpose. Selling it, or using it commercially, i
 The source is available, but this is not an "open source" licence as the OSI defines it, since
 those cannot forbid selling.
 
-The models and the libraries that setup.bat installs have terms of their own, listed in
+The models and the libraries that setup.bat and setup.sh install have terms of their own, listed in
 [NOTICE.md](NOTICE.md). Those of three models are not known, and some are for non-commercial
 use only.
 

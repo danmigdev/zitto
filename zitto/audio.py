@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -28,7 +29,8 @@ def _ffmpeg(*args: str) -> None:
                              capture_output=True, text=True, encoding="utf-8",
                              errors="replace", creationflags=flags)
     except FileNotFoundError as e:
-        raise AudioError("ffmpeg was not found. Install it with: winget install Gyan.FFmpeg") from e
+        how = "brew install ffmpeg" if sys.platform == "darwin" else "winget install Gyan.FFmpeg"
+        raise AudioError(f"ffmpeg was not found. Install it with: {how}") from e
     if run.returncode:
         raise AudioError(f"ffmpeg failed: {run.stderr.strip()[-500:]}")
 

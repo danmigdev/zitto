@@ -18,7 +18,7 @@ from .models import LABELS, PIECES, whole
 from .models import stems as current_stems
 from .parts import PartControls
 from .source import safe_filename
-from .theme import ACCENT, BG, BUTTON, COLORS, DIM, EDGE, TEXT, button
+from .theme import ACCENT, BG, BUTTON, COLORS, DIM, EDGE, TEXT, button, font
 from .waveform import Waveform, clock, peaks
 
 NO_PORT = "Off"
@@ -162,7 +162,7 @@ class PlayerView(tk.Frame):
     def px(self, n: float) -> int:
         return round(n * self.k)
 
-    def button(self, parent, text, command, width=None) -> tk.Button:
+    def button(self, parent, text, command, width=None) -> tk.Widget:
         return button(parent, text, command, self.k, width)
 
     # --- layout -----------------------------------------------------------
@@ -176,10 +176,10 @@ class PlayerView(tk.Frame):
         # moving every control at each step makes resizing jerky.
         head = tk.Frame(self, bg=BG)
         head.grid(row=0, column=0, columnspan=2, sticky="w", padx=side, pady=(self.px(12), self.px(6)))
-        self.time = tk.Label(head, bg=BG, fg=TEXT, font=("Consolas", 15), anchor="w")
+        self.time = tk.Label(head, bg=BG, fg=TEXT, font=font(15, mono=True), anchor="w")
         self.time.pack(side="left")
         self.name = tk.Label(head, text="Add songs on the left. Double-click one to open it.",
-                             bg=BG, fg=DIM, font=("Segoe UI Semibold", 13), anchor="w")
+                             bg=BG, fg=DIM, font=font(13, bold=True), anchor="w")
         self.name.pack(side="left")
 
         self.scrollbar = ttk.Scrollbar(self, orient="horizontal", takefocus=0)
@@ -207,21 +207,21 @@ class PlayerView(tk.Frame):
         self.save_button = self.button(bar, "Save...", self.save)
         tk.Frame(bar, bg=EDGE, width=1).pack(side="left", fill="y", padx=self.px(8))
         self.save_button.pack(side="left", padx=gap)
-        self.loop_text = tk.Label(bar, bg=BG, fg=DIM, font=("Consolas", 10))
+        self.loop_text = tk.Label(bar, bg=BG, fg=DIM, font=font(10, mono=True))
         self.loop_text.pack(side="left", padx=self.px(8))
 
         foot = tk.Frame(self, bg=BG)
         foot.grid(row=4, column=0, columnspan=2, sticky="w", padx=side, pady=(self.px(4), self.px(12)))
-        tk.Label(foot, text="MIDI", bg=BG, fg=DIM, font=("Segoe UI", 10)).pack(side="left", padx=gap)
+        tk.Label(foot, text="MIDI", bg=BG, fg=DIM, font=font(10)).pack(side="left", padx=gap)
         self.port = ttk.Combobox(foot, state="readonly", width=24, takefocus=0, values=[NO_PORT])
         self.port.set(NO_PORT)
         self.port.pack(side="left", padx=gap)
         self.port.bind("<<ComboboxSelected>>", lambda e: self._choose_port())
         self.button(foot, "Assign...", self._open_assign).pack(side="left", padx=gap)
-        tk.Label(foot, bg=BG, fg=DIM, font=("Segoe UI", 9),
+        tk.Label(foot, bg=BG, fg=DIM, font=font(9),
                  text="Drag: loop   Click: move   Wheel: zoom   Space: play/pause   Numbers: parts").pack(
             side="left", padx=self.px(8))
-        self.message = tk.Label(foot, bg=BG, fg=TEXT, font=("Segoe UI", 9), anchor="w")
+        self.message = tk.Label(foot, bg=BG, fg=TEXT, font=font(9), anchor="w")
         self.message.pack(side="left", padx=self.px(8))
 
     def _use_parts(self, stems: tuple[str, ...]) -> None:
@@ -481,15 +481,15 @@ class PlayerView(tk.Frame):
         window.resizable(False, False)
         window.transient(self.winfo_toplevel())
         window.protocol("WM_DELETE_WINDOW", self._close_assign)
-        tk.Label(window, bg=BG, fg=DIM, font=("Segoe UI", 9), justify="left", anchor="w",
+        tk.Label(window, bg=BG, fg=DIM, font=font(9), justify="left", anchor="w",
                  text="Press Learn, then the button on your device.\n"
                       "MMC and Start/Continue/Stop messages work without learning.").grid(
             row=0, column=0, columnspan=4, sticky="w", pady=(0, self.px(10)))
         self.assign_rows = {}
         for r, action in enumerate(midi.ACTIONS, 1):
-            tk.Label(window, text=action.capitalize(), bg=BG, fg=TEXT, font=("Segoe UI Semibold", 10), width=8,
+            tk.Label(window, text=action.capitalize(), bg=BG, fg=TEXT, font=font(10, bold=True), width=8,
                      anchor="w").grid(row=r, column=0, sticky="w")
-            label = tk.Label(window, bg=BG, fg=TEXT, font=("Segoe UI", 10), width=24, anchor="w")
+            label = tk.Label(window, bg=BG, fg=TEXT, font=font(10), width=24, anchor="w")
             label.grid(row=r, column=1, sticky="w")
             learn = self.button(window, "Learn", lambda a=action: self._learn(a), 9)
             learn.grid(row=r, column=2, padx=self.px(4), pady=self.px(3))

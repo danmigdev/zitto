@@ -1,0 +1,52 @@
+name: separation on a Mac
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, mac]
+    paths: [setup.sh, window.command, requirements.txt, zitto/engine.py, tests/separation.py, tests/watched.sh, .github/workflows/separation.yml]
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  separation:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: What the README says to install
+        run: brew install python@3.12 python-tk@3.12 ffmpeg
+      - name: Install from nothing
+        run: ./setup.sh
+      - name: What there is
+        run: |
+          .venv/bin/python -m pip check || true
+          sysctl hw.memsize hw.ncpu machdep.cpu.brand_string vm.swapusage
+          .venv/bin/python -c "import torch, platform; print(platform.machine(), platform.mac_ver()[0], 'torch', torch.__version__, 'mps', torch.backends.mps.is_available())"
+          .venv/bin/zitto --version
+          .venv/bin/python -c "import sys, tkinter; print(sys.version, 'Tk', tkinter.Tcl().call('info', 'patchlevel'))"
+      - name: The window opens, and stays
+        timeout-minutes: 3
+        run: |
+          ./window.command > window.txt 2>&1 & pid=$!
+          sleep 25; cat window.txt
+          screencapture -x window.png || true
+          kill -0 $pid && kill $pid
+      - uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true
+        with:
+          name: window
+          path: window.png
+      - name: The models
+        timeout-minutes: 12
+        run: ./tests/watched.sh 600 .venv/bin/python -X faulthandler -P tests/separation.py models
+      - name: Separation on the CPU
+        timeout-minutes: 25
+        run: ./tests/watched.sh 1200 .venv/bin/python -X faulthandler -P tests/separation.py cpu
+      # The Macs of GitHub are virtual, without a GPU that torch can use: this says when it changes.
+      - name: A little work on the GPU
+        if: always()
+        timeout-minutes: 4
+        run: ./tests/watched.sh 150 .venv/bin/python -X faulthandler -P tests/separation.py gpu

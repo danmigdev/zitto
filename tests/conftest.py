@@ -1,3 +1,4 @@
+import gc
 import tkinter as tk
 from urllib.parse import parse_qs, urlsplit
 
@@ -88,3 +89,7 @@ def window(monkeypatch):
     yield start
     for app in opened:
         app.close()
+    # Now, and here: what is left of a window must not be collected by the thread that loads songs.
+    opened.clear()
+    app = None
+    gc.collect()

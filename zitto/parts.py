@@ -9,7 +9,7 @@ from __future__ import annotations
 import tkinter as tk
 from typing import Callable
 
-from .theme import ACCENT, BAD, BG, BUTTON, DIM, PANEL, TEXT
+from .theme import ACCENT, BAD, BG, BUTTON, DIM, PANEL, TEXT, font
 
 BUTTONS = 0.6  # share of the height of a row for name and buttons; the rest is the volume
 
@@ -61,12 +61,12 @@ class PartControls(tk.Canvas):
 
         row = {"back": box(PANEL), "name": box(BUTTON), "mute": box(BUTTON), "solo": box(BUTTON),
                "track": box(BUTTON), "level": box(DIM), "knob": box(TEXT)}
-        row["label"] = self.create_text(0, 0, text=label, anchor="w", font=("Segoe UI Semibold", 10))
+        row["label"] = self.create_text(0, 0, text=label, anchor="w", font=font(10, bold=True))
         if i in self._opened:
             row["arrow"] = self.create_text(0, 0, text="▾" if self._opened[i] else "▸",
-                                            font=("Segoe UI Symbol", 11))
+                                            font=font(11, symbols=True))
         for name in ("mute", "solo"):
-            row[f"{name} text"] = self.create_text(0, 0, text=name[0].upper(), font=("Segoe UI Semibold", 8))
+            row[f"{name} text"] = self.create_text(0, 0, text=name[0].upper(), font=font(8, bold=True))
         return row
 
     @property

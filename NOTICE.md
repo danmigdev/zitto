@@ -33,7 +33,7 @@ the environment variable `ZITTO_MODELS` to `stated`.
 
 ## Libraries
 
-Most of the libraries that setup.bat installs are under permissive licences (MIT, BSD, ISC,
+Most of the libraries that setup.bat and setup.sh install are under permissive licences (MIT, BSD, ISC,
 Apache 2.0). Those with other conditions:
 
 | Library | Licence | Needed by |
