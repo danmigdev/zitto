@@ -9,9 +9,9 @@ from types import ModuleType
 import numpy as np
 import pytest
 
-from zitto import audio, engine, remover, settings, source, worker
+from zitto import audio, engine, mega, remover, settings, source, worker
 from zitto.engine import Engine
-from zitto.models import DEFAULT, DRUMS, FULL, LEAD, STATED, WIND
+from zitto.models import DEFAULT, DRUMS, FULL, GUITAR, LEAD, STATED, WIND
 from zitto.targets import UnknownTarget, plan, resolve
 
 
@@ -101,6 +101,7 @@ def separator(monkeypatch):
     inner.Separator = Separator
     for name, module in (("torch", torch), ("audio_separator", package), ("audio_separator.separator", inner)):
         monkeypatch.setitem(sys.modules, name, module)
+    monkeypatch.setattr(mega, "download", lambda head, path: given["downloaded"].append(path.name))
     return given
 
 
@@ -114,9 +115,9 @@ def test_reduced_precision_only_on_the_gpu(tmp_path, separator, cuda):
 
 def test_all_the_models_can_be_downloaded_before_they_are_needed(separator, capsys):
     assert worker.download() == worker.DONE
-    assert separator["downloaded"] == [FULL.file, LEAD.file, WIND.file, DRUMS.file]
-    assert f"Model 4 of 4: {DRUMS.name}" in capsys.readouterr().out
-    assert None not in STATED.all() and len(STATED.all()) == 4 and len(DEFAULT.all()) == 4
+    assert separator["downloaded"] == [FULL.file, LEAD.file, WIND.file, DRUMS.file, GUITAR.file]
+    assert f"Model 5 of 5: {GUITAR.name}" in capsys.readouterr().out
+    assert None not in STATED.all() and len(STATED.all()) == 4 and len(DEFAULT.all()) == 5
 
 
 def test_models_left_out_are_removed_from_the_disk(separator, tmp_path, monkeypatch):
@@ -125,8 +126,8 @@ def test_models_left_out_are_removed_from_the_disk(separator, tmp_path, monkeypa
         (tmp_path / model.file).write_bytes(b"model")
     settings.save(without=["lead", "wind"])
     assert worker.download() == worker.DONE
-    assert separator["downloaded"] == [FULL.file, DRUMS.file]
-    assert {p.name for p in tmp_path.iterdir()} >= {FULL.file, DRUMS.file}
+    assert separator["downloaded"] == [FULL.file, DRUMS.file, GUITAR.file]
+    assert {p.name for p in tmp_path.iterdir()} >= {FULL.file, DRUMS.file, GUITAR.file}
     assert not any((tmp_path / m.file).exists() for m in (LEAD, WIND))
 
 

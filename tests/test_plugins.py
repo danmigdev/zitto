@@ -90,8 +90,8 @@ def test_the_models_say_their_terms(chosen):
 def test_the_default_models_find_every_part():
     assert models.current() is models.DEFAULT and ("voice", *models.parts()) == models.NAMES
     assert targets.available() == targets.TARGETS
-    assert models.stems() == ("lead", "backing", "kick", "snare", "toms", "cymbals", "bass", "guitar", "piano",
-                              "wind", "other")
+    assert models.stems() == ("lead", "backing", "kick", "snare", "toms", "cymbals", "bass", "acoustic", "electric",
+                              "piano", "wind", "other")
 
 
 def test_models_with_stated_terms_can_be_asked_for(monkeypatch):
@@ -120,10 +120,12 @@ def test_a_plugin_can_bring_other_models(monkeypatch):
 def test_the_user_can_do_without_some_models():
     settings.save(without=["lead"])
     assert models.parts() == ("voice", "drums", "bass", "guitar", "piano", "wind", "other")
-    assert models.current().all() == (models.FULL, models.WIND, models.DRUMS)
+    assert models.current().all() == (models.FULL, models.WIND, models.DRUMS, models.GUITAR)
     with pytest.raises(targets.UnknownTarget):
         targets.resolve(["lead-voice"])
-    settings.save(without=["lead", "wind", "drums", "voice", "other"])  # not those that are needed
+    settings.save(without=["guitar"])
+    assert "guitar" in models.stems() and "acoustic" not in models.stems() and "kick" in models.stems()
+    settings.save(without=["lead", "wind", "drums", "guitar", "voice", "other"])  # not those that are needed
     assert models.parts() == models.stems() == ("voice", "drums", "bass", "guitar", "piano", "other")
     assert models.current().all() == (models.FULL,) and models.complete() is models.DEFAULT
     assert [t.key for t in targets.available()] == ["voice", "drums", "bass", "guitar", "piano", "other"]

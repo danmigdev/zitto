@@ -11,11 +11,11 @@ the optional models).
    On macOS 14 you can also right-click zitto, then Open.
 
 3. The first time it asks which separation models to have, and downloads them with Python, the
-   libraries and ffmpeg: from 1.1 to 3.5 GB. Then it opens by itself. If you quit in the middle, the
+   libraries and ffmpeg: from 1.1 to 3.6 GB. Then it opens by itself. If you quit in the middle, the
    next time it goes on. To add or remove models later: Settings, in the zitto menu.
 
-Use it with recordings that you made, or that you have the right to use in this way. The terms of three
-of the four models are not known: see https://github.com/danmigdev/zitto#how-it-works
+Use it with recordings that you made, or that you have the right to use in this way. The terms of four
+of the five models are not known: see https://github.com/danmigdev/zitto#how-it-works
 
 To remove it: delete zitto from Applications, and in the Finder, Go > Go to Folder, delete
     ~/Library/Application Support/zitto

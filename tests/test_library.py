@@ -10,7 +10,7 @@ import pytest
 
 from zitto import audio, library, models, remover, settings, source, worker
 from zitto.mixer import FADE, Mixer, mixdown
-from zitto.models import BAND, DRUMS, FULL, LEAD, STATED_LEAD, VOICE, WIND
+from zitto.models import BAND, DRUMS, FULL, GUITAR, LEAD, STATED_LEAD, VOICE, WIND
 from zitto.targets import resolve
 from test_zitto import FakeEngine
 from test_player import render
@@ -19,7 +19,7 @@ LINK = "https://songs.example/alpha"
 OTHER = "https://songs.example/beta"
 LIST = "https://songs.example/list/one"
 SHARES = {"voice": 0.4, "drums": 0.2, "bass": 0.1, "guitar": 0.05, "piano": 0.05, "lead": 0.75, "wind": 0.5,
-          "kick": 0.4, "snare": 0.3, "toms": 0.1}
+          "kick": 0.4, "snare": 0.3, "toms": 0.1, "acoustic": 0.6}
 
 pytestmark = pytest.mark.usefixtures("links")
 
@@ -166,11 +166,13 @@ def test_voices_come_from_the_voice_and_wind_from_what_is_left(tmp_path):
     mix = np.full((100, 2), 0.4, np.float32)
     fake = engine()
     parts = worker.split(mix, fake, tmp_path, lambda s: None)
-    assert [c[0] for c in fake.calls] == [FULL, LEAD, WIND, DRUMS] and tuple(parts) == models.stems()
+    assert [c[0] for c in fake.calls] == [FULL, LEAD, WIND, DRUMS, GUITAR] and tuple(parts) == models.stems()
     np.testing.assert_allclose(fake.calls[1][2], mix * 0.4, rtol=1e-5)
     np.testing.assert_allclose(fake.calls[2][2], mix * 0.2, rtol=1e-5)
     np.testing.assert_allclose(fake.calls[3][2], mix * 0.2, rtol=1e-5)  # the drums
     np.testing.assert_allclose(parts["cymbals"], mix * 0.2 * 0.2, rtol=1e-5)  # what the other pieces leave
+    np.testing.assert_allclose(fake.calls[4][2], mix * 0.05, rtol=1e-5)  # the guitar
+    np.testing.assert_allclose(parts["electric"], mix * 0.05 * 0.4, rtol=1e-4)
     np.testing.assert_allclose(sum(parts.values()), mix, rtol=1e-5)
 
 
@@ -186,14 +188,15 @@ def test_several_models_work_each_on_what_the_others_left(tmp_path, monkeypatch)
     np.testing.assert_allclose(sum(parts.values()), mix, rtol=1e-5)
 
 
-@pytest.mark.parametrize("without", [["lead"], ["wind"], ["drums"], ["lead", "wind"], ["lead", "wind", "drums"]])
+@pytest.mark.parametrize("without", [["lead"], ["wind"], ["drums"], ["guitar"], ["lead", "wind"],
+                                     ["lead", "wind", "drums", "guitar"]])
 def test_a_song_separated_without_some_models(song_file, tmp_path, without):
     settings.save(without=without)
     path, mix = song_file
     song, fake = library.add(str(path)), engine()
     run_worker(tmp_path, fake)
-    left_out = {{"lead": LEAD, "wind": WIND, "drums": DRUMS}[name] for name in without}
-    assert [c[0] for c in fake.calls] == [m for m in (FULL, LEAD, WIND, DRUMS) if m not in left_out]
+    left_out = {{"lead": LEAD, "wind": WIND, "drums": DRUMS, "guitar": GUITAR}[name] for name in without}
+    assert [c[0] for c in fake.calls] == [m for m in (FULL, LEAD, WIND, DRUMS, GUITAR) if m not in left_out]
     stems = library.load_stems(song.key)
     assert stems.names == models.stems() and ("voice" in stems.names) == ("lead" in without)
     np.testing.assert_allclose(mixdown(stems.data, stems.gain, [1.0] * len(stems.data)), mix, atol=4e-4)

@@ -28,6 +28,7 @@ static NSString *TextOf(NSString *path) {
 static const struct { const char *name, *label; int size; } extras[] = {
     {"lead", "Lead and backing voices, each on its own", 1720},
     {"drums", "Pieces of the drums: kick, snare, toms, cymbals", 440},
+    {"guitar", "Acoustic and electric guitar, each on its own", 80},
     {"wind", "Wind instruments", 225},
 };
 enum {
@@ -188,17 +189,17 @@ static long long FreeSpace(void) {
     BOOL change = Installed();
     _choice = [self page];
     [self label:change ? @"What zitto finds in a song" : @"Getting zitto ready"
-             at:NSMakeRect(24, 266, 432, 22) size:15 bold:YES dim:NO];
+             at:NSMakeRect(24, 294, 432, 22) size:15 bold:YES dim:NO];
     [self label:change ? @"What is unticked is removed from the disk, what is ticked is downloaded. Songs that are "
                           "already separated keep the parts they have."
                        : @"The first time it downloads what separates the songs on this Mac. Untick what you can do "
                           "without: you can add it later, from the zitto menu."
-             at:NSMakeRect(24, 224, 432, 36) size:12 bold:NO dim:YES];
-    NSButton *always = [self tick:@"Voice, drums, bass, guitar, piano" size:LIBRARIES + MODELS at:186];
+             at:NSMakeRect(24, 252, 432, 36) size:12 bold:NO dim:YES];
+    NSButton *always = [self tick:@"Voice, drums, bass, guitar, piano" size:LIBRARIES + MODELS at:214];
     always.state = NSControlStateValueOn;
     always.enabled = NO;
     for (int i = 0; i < EXTRAS; i++) {
-        _ticks[i] = [self tick:@(extras[i].label) size:extras[i].size at:158 - 28 * i];
+        _ticks[i] = [self tick:@(extras[i].label) size:extras[i].size at:186 - 28 * i];
         _ticks[i].state = LeftOut(i) ? NSControlStateValueOff : NSControlStateValueOn;
     }
     _sum = [self label:@"" at:NSMakeRect(24, 56, 432, 34) size:12 bold:NO dim:NO];
@@ -210,13 +211,13 @@ static long long FreeSpace(void) {
 
 - (void)makeProgress {
     _progress = [self page];
-    [self label:@"Getting zitto ready" at:NSMakeRect(24, 266, 432, 22) size:15 bold:YES dim:NO];
+    [self label:@"Getting zitto ready" at:NSMakeRect(24, 294, 432, 22) size:15 bold:YES dim:NO];
     [self label:@"When it is done it opens by itself. If you quit, the next time it goes on."
-             at:NSMakeRect(24, 224, 432, 36) size:12 bold:NO dim:YES];
-    _step = [self label:@"" at:NSMakeRect(24, 148, 432, 50) size:13 bold:NO dim:NO];
-    _bar = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(24, 120, 432, 20)];
+             at:NSMakeRect(24, 252, 432, 36) size:12 bold:NO dim:YES];
+    _step = [self label:@"" at:NSMakeRect(24, 176, 432, 50) size:13 bold:NO dim:NO];
+    _bar = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(24, 148, 432, 20)];
     [_progress addSubview:_bar];
-    _amount = [self label:@"" at:NSMakeRect(24, 96, 432, 18) size:12 bold:NO dim:YES];
+    _amount = [self label:@"" at:NSMakeRect(24, 124, 432, 18) size:12 bold:NO dim:YES];
     [self button:@"Quit" at:NSMakeRect(366, 18, 96, 32) action:@selector(terminate:) target:NSApp];
     _again = [self button:@"" at:NSMakeRect(266, 18, 100, 32) action:@selector(again) target:self];
 }
@@ -228,7 +229,7 @@ static long long FreeSpace(void) {
     NSApp.mainMenu = [NSMenu new];
     [NSApp.mainMenu addItem:item];
 
-    _window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 480, 310)
+    _window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 480, 338)
                                           styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskMiniaturizable
                                             backing:NSBackingStoreBuffered defer:NO];
     _window.title = @"zitto";

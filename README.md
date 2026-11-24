@@ -28,7 +28,7 @@ without a GPU. It has been used on few real ones so far: if something is not rig
 2. Open it. It has no paid certificate of Apple, so the first time macOS says that it could not
    verify it. Choose Done, then System Settings, Privacy & Security, and at the bottom **Open Anyway**
 3. The first time it asks which models to have, and downloads them by itself with what else it
-   needs (Python, the libraries, ffmpeg): from 1.1 to 3.5 GB. Then it opens. If you quit in the
+   needs (Python, the libraries, ffmpeg): from 1.1 to 3.6 GB. Then it opens. If you quit in the
    middle, the next time it goes on
 
 To add or remove models later: Settings, in the zitto menu. Use Cmd where this page says Ctrl. Everything, songs included, is in
@@ -61,7 +61,8 @@ last song is there as you left it, with its parts, volumes and loop, and what wa
 waiting goes on.
 
 The parts: lead voice, backing voices, drums, bass, guitar, piano, wind, other. The drums open
-into kick, snare, toms and cymbals. All of them together are the original.
+into kick, snare, toms and cymbals, the guitar into acoustic and electric. All of them together
+are the original.
 
 ### Player
 
@@ -72,7 +73,7 @@ into kick, snare, toms and cymbals. All of them together are the original.
 | mute a part | M, or click its name, or its number on the keyboard |
 | hear only some | S (solo); a muted part stays silent also when soloed |
 | set its volume | drag the line under its name |
-| open the drums into their pieces | the arrow beside their name; mute and volume of the drums act on all the pieces |
+| open the drums, or the guitar, into their pieces | the arrow beside their name; mute and volume of a part act on all its pieces |
 | select a loop | drag on the waveform, then drag its edges to adjust |
 | move | click on the waveform |
 | zoom, scroll | wheel, Shift+wheel |
@@ -113,7 +114,7 @@ Names (Italian ones too): `voice`, `lead-voice`, `drums`, `bass`, `guitar`, `pia
 
 ## How it works
 
-Four models estimate the parts; what none of them recognises stays in "other". They are not
+Five models estimate the parts; what none of them recognises stays in "other". They are not
 part of zitto: each is downloaded to `models\` the first time it is needed. (The app for the Mac
 downloads those that you choose the first time it is opened.)
 
@@ -122,13 +123,14 @@ downloads those that you choose the first time it is opened.)
 | [BS-Roformer-SW](https://huggingface.co/enerjazzer/BS-ROFO-SW-Fixed) | voice, drums, bass, guitar, piano | 0.7 GB | **unknown** |
 | [Mel-Roformer Karaoke (becruily)](https://huggingface.co/becruily/mel-band-roformer-karaoke) | lead and backing voices | 1.7 GB | **not stated** |
 | [MDX23C DrumSep (aufr33, jarredou)](https://pypi.org/project/mdxnet-infer/) | kick, snare, toms, cymbals | 0.4 GB | **not stated** |
+| [MVSep Mega 53 Stems (ZFTurbo)](https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/tag/v1.0.21) | acoustic and electric guitar | 0.1 GB | **not stated** |
 | [UVR 17_HP-Wind_Inst](https://github.com/Anjok07/ultimatevocalremovergui) | wind | 0.2 GB | MIT, with credit to UVR |
 
 The first is always needed. To do without the others write, in `settings.json`,
-`"without": ["lead", "drums", "wind"]`, or only some of them: the voice stays one part, the drums
-stay one part, wind stays in "other". The app for the Mac asks it.
+`"without": ["lead", "drums", "guitar", "wind"]`, or only some of them: the voice, the drums and the
+guitar stay one part each, wind stays in "other". The app for the Mac asks it.
 
-The first three were chosen for their quality, but how they can be used is not known: the author
+The first four were chosen for their quality, but how they can be used is not known: the author
 of the first is unknown, those of the others do not say. Decide for yourself whether
 to use them. To have only models whose authors state their terms, set the environment variable
 `ZITTO_MODELS` to `stated`. The quality is lower, guitar and piano stay in "other", and the drums
@@ -142,7 +144,7 @@ are one part:
 | [UVR 17_HP-Wind_Inst](https://github.com/Anjok07/ultimatevocalremovergui) | wind | 0.2 GB | MIT, with credit to UVR |
 
 The separation is an estimate: traces of a part can remain in the others, and instruments
-that sound alike (two guitars, for example) cannot be told apart.
+that sound alike (two electric guitars, for example) cannot be told apart.
 
 Songs are kept in `library\`, about 20 MB per minute. To keep them elsewhere, set the
 environment variable `ZITTO_LIBRARY` to a folder.
@@ -162,7 +164,7 @@ The source is available, but this is not an "open source" licence as the OSI def
 those cannot forbid selling.
 
 The models and the libraries that are downloaded have terms of their own, listed in
-[NOTICE.md](NOTICE.md). Those of three models are not known, and some are for non-commercial
+[NOTICE.md](NOTICE.md). Those of four models are not known, and some are for non-commercial
 use only.
 
 Separating a song does not give any right on it. Copying, publishing or performing a recording

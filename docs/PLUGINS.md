@@ -127,6 +127,7 @@ def my_models():
 ```
 
 - `drums`, if it is given, finds `kick`, `snare` and `toms` inside the drums. The cymbals are the rest
+- `guitar`, if it is given, finds `acoustic` inside the guitar. The electric one is the rest
 - `main` runs in order on the song, each model on what the others left. Together they must find
   at least `voice`
 - `lead` finds the lead voice inside the voice, `wind` the wind instruments in what is left. Both can

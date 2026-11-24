@@ -66,7 +66,8 @@ def mix_name(audible: dict[str, bool]) -> str:
     def words(names):
         if "lead" in names and "backing" in names:
             names = ["voice"] + [n for n in names if n not in ("lead", "backing")]
-        shown = {"lead": "lead voice", "backing": "backing voices"}
+        shown = {"lead": "lead voice", "backing": "backing voices", "acoustic": "acoustic guitar",
+                 "electric": "electric guitar"}
         return ", ".join(shown.get(n, n) for n in names)
 
     on, off = (merged([n for n, a in audible.items() if a == wanted]) for wanted in (True, False))

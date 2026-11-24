@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 import numpy as np
 
+from . import mega
 from .audio import RATE, read_wav, write_wav
 from .models import Model
 from .settings import HOME
@@ -18,6 +19,7 @@ MODELS_DIR = HOME / "models"
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 OPEN_UNMIX_TARGETS = ("vocals", "drums", "bass", "other")
 PIECE, FADE = 60 * RATE, 2 * RATE
+MEGA_PIECE, MEGA_FADE = 861 * mega.HOP, 86 * mega.HOP  # 10 s, faded in 1
 
 
 class EngineError(RuntimeError):
@@ -40,6 +42,9 @@ class Engine:
         """Download a model now, instead of the first time it is needed. Does nothing if it is there."""
         if model.backend == "openunmix":
             self._open_unmix_network(model)
+        elif model.backend == "mega":
+            for head in model.parts.values():
+                mega.download(head, self._models_dir / model.file)
         else:
             from audio_separator.separator import Separator
 
@@ -88,7 +93,7 @@ class Engine:
         import torch
 
         loaded = self._loaded.get((model, workdir))
-        if model.backend == "openunmix":
+        if model.backend in ("openunmix", "mega"):
             network = loaded
         else:
             network = getattr(getattr(loaded, "model_instance", None), "model_run", None)
@@ -106,6 +111,8 @@ class Engine:
         try:
             if model.backend == "openunmix":
                 return self._open_unmix(audio, model, parts, workdir)
+            if model.backend == "mega":
+                return self._mega(audio, model, parts, workdir)
             return self._separator(audio, model, parts, workdir)
         finally:
             self._park(model, workdir)
@@ -161,6 +168,25 @@ class Engine:
             return np.stack([_fit(one.T, len(piece)) for one in found])
 
         return dict(zip(parts, in_pieces(audio, process, len(parts))))
+
+    def _mega(self, audio: np.ndarray, model: Model, parts: list[str], workdir: Path) -> dict[str, np.ndarray]:
+        import torch
+
+        device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+        network = self._loaded.get((model, workdir))
+        if network is None:
+            self.download(model)
+            network = self._loaded[model, workdir] = mega.network(self._models_dir / model.file)
+        network.to(device)
+
+        def process(piece: np.ndarray) -> np.ndarray:
+            given = torch.from_numpy(_fit(piece, MEGA_PIECE).T[None].copy()).to(device)
+            # As in _load: only on an NVIDIA GPU.
+            with torch.inference_mode(), torch.autocast("cuda", torch.float16, enabled=device == "cuda"):
+                found = network(given).float().cpu().numpy()
+            return np.stack([_fit(one.T, len(piece)) for one in found.reshape(len(parts), 2, -1)])
+
+        return dict(zip(parts, in_pieces(audio, process, len(parts), MEGA_PIECE, MEGA_FADE)))
 
 
 def in_pieces(audio: np.ndarray, process: Callable[[np.ndarray], np.ndarray], n: int,

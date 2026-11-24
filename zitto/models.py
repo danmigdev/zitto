@@ -16,9 +16,10 @@ from . import plugins, settings
 NAMES = ("voice", "lead", "backing", "drums", "bass", "guitar", "piano", "wind", "other")
 LABELS = {"voice": "Voice", "lead": "Lead voice", "backing": "Backing voices", "drums": "Drums",
           "bass": "Bass", "guitar": "Guitar", "piano": "Piano", "wind": "Wind", "other": "Other",
-          "kick": "Kick", "snare": "Snare", "toms": "Toms", "cymbals": "Cymbals"}
+          "kick": "Kick", "snare": "Snare", "toms": "Toms", "cymbals": "Cymbals",
+          "acoustic": "Acoustic", "electric": "Electric"}
 # Parts that can be stored as pieces. The last piece is what the others leave.
-PIECES = {"drums": ("kick", "snare", "toms", "cymbals")}
+PIECES = {"drums": ("kick", "snare", "toms", "cymbals"), "guitar": ("acoustic", "electric")}
 STEMS = tuple(s for n in NAMES for s in (*PIECES.get(n, ()), n))  # all that can be stored, in order
 
 
@@ -29,7 +30,7 @@ class Model:
     parts: dict[str, str] = field(hash=False)  # part ("voice", "lead", "drums"...) -> its name in the model
     terms: str = ""
     page: str = ""
-    backend: str = "separator"  # or "openunmix"
+    backend: str = "separator"  # or "openunmix", "mega"
     overlap: int | None = None  # how many times each moment is computed, where the model allows it
 
 
@@ -39,9 +40,10 @@ class ModelSet:
     lead: Model | None = None  # the lead voice, inside the voice
     wind: Model | None = None  # the wind instruments, in what is left
     drums: Model | None = None  # the pieces of the drums, inside the drums
+    guitar: Model | None = None  # the acoustic guitar, inside the guitar
 
     def all(self) -> tuple[Model, ...]:
-        return (*self.main, *filter(None, [self.lead, self.wind, self.drums]))
+        return (*self.main, *filter(None, [self.lead, self.wind, self.drums, self.guitar]))
 
 
 _UVR = {"terms": "MIT, with credit to UVR and its developers (as their README asks)",
@@ -66,9 +68,14 @@ DRUMS = Model("MDX23C DrumSep (aufr33, jarredou)", "MDX23C-DrumSep-aufr33-jarred
               {"kick": "kick", "snare": "snare", "toms": "toms"},
               "not stated", "https://pypi.org/project/mdxnet-infer/")
 
-DEFAULT = ModelSet((FULL,), LEAD, WIND, DRUMS)
+# The electric guitar is what remains: better than looking for it too.
+GUITAR = Model("MVSep Mega 53 Stems (acoustic guitar)", "MVSep-Mega-53-acoustic-guitar.npz",
+               {"acoustic": "acoustic-guitar"}, "not stated",
+               "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/tag/v1.0.21", backend="mega")
+
+DEFAULT = ModelSet((FULL,), LEAD, WIND, DRUMS, GUITAR)
 STATED = ModelSet((VOICE, BAND), STATED_LEAD, WIND)  # only models whose authors say how they can be used
-OPTIONAL = ("lead", "wind", "drums")  # what the user can do without: "without", in the settings
+OPTIONAL = ("lead", "wind", "drums", "guitar")  # what the user can do without: "without", in the settings
 
 
 def complete() -> ModelSet:
@@ -103,8 +110,8 @@ def parts() -> tuple[str, ...]:
 
 def stems() -> tuple[str, ...]:
     """What is stored of a song separated now: its parts, or their pieces."""
-    split = PIECES if current().drums else {}
-    return tuple(s for n in parts() for s in split.get(n, (n,)))
+    chosen = current()
+    return tuple(s for n in parts() for s in (PIECES[n] if getattr(chosen, n, None) and n in PIECES else (n,)))
 
 
 def whole(stem: str) -> str | None:

@@ -83,7 +83,7 @@ pre { background: var(--panel); border: 1px solid var(--edge); margin: 0; paddin
       <li style="--c: var(--backing)"><span class="name">Backing voices</span><span class="m" aria-hidden="true">M</span><p>Kept apart from the lead, so the choir can stay.</p></li>
       <li style="--c: var(--drums)"><span class="name">Drums</span><span class="m" aria-hidden="true">M</span><p>They open into kick, snare, toms and cymbals.</p></li>
       <li style="--c: var(--bass)"><span class="name">Bass</span><span class="m" aria-hidden="true">M</span><p>Each part has its own volume.</p></li>
-      <li style="--c: var(--guitar)"><span class="name">Guitar</span><span class="m" aria-hidden="true">M</span><p>Muted, to play it yourself. All the guitars are one part.</p></li>
+      <li style="--c: var(--guitar)"><span class="name">Guitar</span><span class="m" aria-hidden="true">M</span><p>Muted, to play it yourself. It opens into acoustic and electric.</p></li>
       <li style="--c: var(--piano)"><span class="name">Piano</span><span class="m" aria-hidden="true">M</span><p>Soloed, to work out the chords.</p></li>
       <li style="--c: var(--wind)"><span class="name">Wind</span><span class="m" aria-hidden="true">M</span><p>Sax, flute and brass.</p></li>
       <li style="--c: var(--other)"><span class="name">Other</span><span class="m" aria-hidden="true">M</span><p>Everything else. All the parts together are the original.</p></li>
@@ -132,11 +132,12 @@ pre { background: var(--panel); border: 1px solid var(--edge); margin: 0; paddin
           <tr><td><a href="https://huggingface.co/enerjazzer/BS-ROFO-SW-Fixed">BS-Roformer-SW</a></td><td>voice, drums, bass, guitar, piano</td><td class="size">699 MB</td><td>unknown</td></tr>
           <tr><td><a href="https://huggingface.co/becruily/mel-band-roformer-karaoke">Mel-Roformer Karaoke (becruily)</a></td><td>lead and backing voices</td><td class="size">1719 MB</td><td>not stated</td></tr>
           <tr><td><a href="https://pypi.org/project/mdxnet-infer/">MDX23C DrumSep</a></td><td>kick, snare, toms, cymbals</td><td class="size">438 MB</td><td>not stated</td></tr>
+          <tr><td><a href="https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/tag/v1.0.21">MVSep Mega 53 Stems</a></td><td>acoustic and electric guitar</td><td class="size">78 MB</td><td>not stated</td></tr>
           <tr><td><a href="https://github.com/Anjok07/ultimatevocalremovergui">UVR 17_HP-Wind_Inst</a></td><td>wind</td><td class="size">224 MB</td><td>MIT, with credit to UVR</td></tr>
         </tbody>
       </table>
     </div>
-    <p>The author of BS-Roformer-SW is unknown, and those of the karaoke and drum models do not say how they can be used. zitto can use only models with stated terms instead, with lower quality, without guitar, piano and the pieces of the drums: the README explains how.</p>
+    <p>The author of BS-Roformer-SW is unknown, and those of the karaoke, drum and guitar models do not say how they can be used. zitto can use only models with stated terms instead, with lower quality, without guitar, piano and the pieces of the drums: the README explains how.</p>
     <p>The separation is an estimate. Traces of a part can remain in the others.</p>
   </section>
 

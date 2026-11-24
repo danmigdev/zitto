@@ -29,12 +29,10 @@ def song() -> np.ndarray:
 
 
 def download():
-    from audio_separator.separator import Separator
-
     from zitto import engine, models
-    separator = Separator(model_file_dir=str(engine.MODELS_DIR))
+    eng = engine.Engine()
     for model in models.current().all():
-        separator.download_model_files(model.file)
+        eng.download(model)
         say(model.name, "%.0f MB" % ((engine.MODELS_DIR / model.file).stat().st_size / 1e6))
 
 
@@ -73,9 +71,10 @@ def separate(device: str):
     for name, data in zip(stems.names, stems.data):
         say("   %-8s %.4f" % (name, float(np.sqrt((data.astype(np.float64) / 32768 * stems.gain) ** 2).mean())))
     assert stems.names == models.stems() and error < 1e-3
-    lead = eng.stems(mix, models.current().lead, ["lead"], work)["lead"]
-    say("lead", lead.shape, "finite:", bool(np.isfinite(lead).all()))
-    assert np.isfinite(lead).all() and lead.shape == mix.shape
+    for model, part in ((models.current().lead, "lead"), (models.current().guitar, "acoustic")):  # whatever there is
+        found = eng.stems(mix, model, [part], work)[part]
+        say(part, found.shape, "finite:", bool(np.isfinite(found).all()))
+        assert np.isfinite(found).all() and found.shape == mix.shape
 
 
 if __name__ == "__main__":

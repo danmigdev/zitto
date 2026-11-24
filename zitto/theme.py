@@ -14,7 +14,8 @@ BG, PANEL, BUTTON, HOVER, EDGE = "#14171c", "#1b1f26", "#262c36", "#343c49", "#2
 TEXT, DIM, ACCENT, BAD = "#e6e9ee", "#8a93a1", "#f5c451", "#ff7a7a"
 COLORS = {"voice": "#ff7a90", "lead": "#ff7a90", "backing": "#ff9ecb", "drums": "#ffb454",
           "bass": "#8bd450", "guitar": "#4cc9f0", "piano": "#b794f6", "wind": "#5eead4", "other": "#9fb0c3",
-          "kick": "#e8923a", "snare": "#ffc272", "toms": "#f2a65a", "cymbals": "#ffdcae"}
+          "kick": "#e8923a", "snare": "#ffc272", "toms": "#f2a65a", "cymbals": "#ffdcae",
+          "acoustic": "#8adcf7", "electric": "#2aa7d4"}
 
 
 def rgb(color: str) -> int:

@@ -261,7 +261,7 @@ def test_the_drums_open_into_their_pieces(window):
     p = app.player
     app.open(key)
     until(app, lambda: p.key == key)
-    assert len(p.parts._rows) == 8 and len(p.names) == 12 and "arrow" in p.parts._rows[2]
+    assert len(p.parts._rows) == 8 and len(p.names) == 14 and "arrow" in p.parts._rows[2]
     p.toggle_main(2)  # the key of the drums
     kick, bass = p.names.index("kick"), p.names.index("bass")
     level = lambda stem: p.mixer._wanted[models.stems().index(stem)]
@@ -290,6 +290,28 @@ def test_the_drums_open_into_their_pieces(window):
     assert p.opened == {"drums"} and len(p.parts._rows) == 12 and level("kick") == 0
     p.toggle_pieces("drums")
     assert len(p.parts._rows) == len(p.wave._peaks) == 8 and level("kick") == 0  # hidden, not switched on again
+
+
+def test_the_guitar_opens_too(window):
+    key = make_song("a", "Alpha", names=models.stems())
+    app = window()
+    p = app.player
+    app.open(key)
+    until(app, lambda: p.key == key)
+    p.toggle_pieces("guitar")
+    assert len(p.parts._rows) == 10
+    p.toggle_pieces("drums")
+    app.root.update()
+    assert len(p.parts._rows) == len(p.wave._peaks) == 14 and p.opened == {"drums", "guitar"}
+    p.toggle_part(p.names.index("acoustic"))
+    sounding = dict(zip(p.names, p.audible()))
+    assert not sounding["acoustic"] and sounding["electric"] and sounding["guitar"] and sounding["kick"]
+    assert player.mix_name({n: a for n, a in sounding.items() if n in models.stems()}) == " (no acoustic guitar)"
+    p.toggle_part(p.names.index("electric"))
+    assert not p.audible()[p.names.index("guitar")]
+    assert player.mix_name({n: a for n, a in zip(p.names, p.audible()) if n in models.stems()}) == " (no guitar)"
+    p.leave()
+    assert library.load_state(key)["opened"] == ["drums", "guitar"]
 
 
 def test_the_arrow_opens_the_drums(window):

@@ -3,10 +3,11 @@
 #   mac_app.sh FILE.dmg
 # Pictures of the screen go to shots/.
 set -u
-before=https://github.com/danmigdev/zitto/releases/download/v0.4.0b1/zitto-0.4.0b1-mac.dmg
+before=https://github.com/danmigdev/zitto/releases/download/v0.4.0/zitto-0.4.0-mac.dmg
 app=/Applications/zitto.app
 home="$HOME/Library/Application Support/zitto"
 lead=mel_band_roformer_karaoke_becruily.ckpt drums=MDX23C-DrumSep-aufr33-jarredou.ckpt wind=17_HP-Wind_Inst-UVR.pth
+guitar=MVSep-Mega-53-acoustic-guitar.npz
 mkdir -p shots
 say() { printf '%5d s  %s\n' $SECONDS "$*"; }
 shot() { screencapture -x "shots/$1.png"; }
@@ -19,13 +20,13 @@ installed() { cmp -s "$home/installed" $app/Contents/Resources/id; }
 in_window() { osascript -e "tell application \"System Events\" to tell window 1 of process \"zitto\" to $1"; }
 has() { [ "$(in_window "get exists button \"$1\"" 2>/dev/null)" = true ]; }
 click() { until_true 20 in_window "click $1" || die "cannot click $1"; }
-ticks() { for what in Lead Pieces Wind; do in_window "get value of first checkbox whose title starts with \"$what\""; done | xargs; }
+ticks() { for what in Lead Pieces Acoustic Wind; do in_window "get value of first checkbox whose title starts with \"$what\""; done | xargs; }
 tick() { click "(first checkbox whose title starts with \"$1\")"; }
 asked() { until_true 20 has Install; }
 settings() { osascript -e 'tell application "System Events" to tell process "zitto" to click (first menu item of menu 1 of menu bar item 2 of menu bar 1 whose (title starts with "Settings" or title starts with "Preferences"))'; }
 quit() { osascript -e "tell application \"$app\" to quit"; until_true 20 ended || { ps -ax | grep -i zitto; die "it does not quit"; }; }
 free() { df -m "$HOME" | awk 'NR == 2 {print $4}'; }
-models() { ls "$home/models" | grep -E '\.(ckpt|pth)$' | xargs; }
+models() { ls "$home/models" | grep -E '\.(ckpt|pth|npz)$' | xargs; }
 stems() { ls "$home"/library/"$1"/ | grep flac | xargs; }
 in_dmg() { hdiutil attach -nobrowse -readonly -mountpoint /tmp/dmg "$1" > /dev/null || die "the dmg cannot be opened"; }
 
@@ -50,7 +51,7 @@ open $app || die "it cannot be opened"
 asked || die "it does not ask"
 shot first-open; ticks
 [ "$(ls "$home" | xargs)" = "" ] || { ls "$home"; die "it did not wait for an answer"; }
-for what in Lead Pieces Wind; do tick $what; done
+for what in Lead Pieces Acoustic Wind; do tick $what; done
 shot only-what-is-needed; ticks
 click 'button "Install"'
 for minute in $(seq 15); do
@@ -90,25 +91,36 @@ osascript -e 'tell application "System Events" to tell process "zitto" to get ti
 settings || die "no Settings in the menu"
 until_true 30 has Apply || die "the window of the models does not open"
 sleep 2; shot settings; ticks
-[ "$(ticks)" = "0 0 0" ] || die "the choice was not remembered"
-for what in Lead Pieces Wind; do tick $what; done
+[ "$(ticks)" = "0 0 0 0" ] || die "the choice was not remembered"
+for what in Lead Pieces Acoustic Wind; do tick $what; done
 click 'button "Apply"'
 sleep 20; shot more-models
 opened_with() { [ "$(models | wc -w | xargs)" = "$1" ] && ! pgrep -f install.sh && running; }
-until_true 600 opened_with 4 || die "the models did not come"
+until_true 600 opened_with 5 || die "the models did not come"
 sleep 15; shot window-all; used "everything"; models; quit
 say "a song, with everything"
 song all
-[ "$(stems $made)" = "backing.flac bass.flac cymbals.flac guitar.flac kick.flac lead.flac other.flac piano.flac snare.flac toms.flac wind.flac" ] || die "not those parts"
+[ "$(stems $made)" = "acoustic.flac backing.flac bass.flac cymbals.flac electric.flac kick.flac lead.flac other.flac piano.flac snare.flac toms.flac wind.flac" ] || die "not those parts"
 
+say "the guitars, whatever there is in that song"
+ZITTO_HOME="$home" PATH="$home/bin:$PATH" "$home/venv/bin/python" -P -c '
+import tempfile, time, soundfile as sf
+from pathlib import Path
+from zitto import engine, models
+x, rate = sf.read("all.wav", dtype="float32", always_2d=True)
+start = time.time()
+found = engine.Engine().stems(x, models.GUITAR, ["acoustic"], Path(tempfile.mkdtemp()))["acoustic"]
+assert found.shape == x.shape and abs(found).max() < 2
+print("acoustic %.4f, in %.0f s" % ((found ** 2).mean() ** 0.5, time.time() - start))' 2>&1 | grep -vE 'Warning|autocast|_VF' | tail -5
+[ "${PIPESTATUS[0]}" = 0 ] || die "the guitars"
 say "one model less, and Cancel"
 settings; until_true 30 has Apply || die "the window of the models does not open"
-[ "$(ticks)" = "1 1 1" ] || die "the choice was not remembered"
+[ "$(ticks)" = "1 1 1 1" ] || die "the choice was not remembered"
 tick Wind; click 'button "Cancel"'; sleep 10; running > /dev/null || die "Cancel does not bring back the window"
 [ -f "$home/models/$wind" ] || die "Cancel did it"
 settings; until_true 30 has Apply || die "the window of the models does not open"
 tick Wind; click 'button "Apply"'
-until_true 60 opened_with 3 || die "it is still there"
+until_true 60 opened_with 4 || die "it is still there"
 models; sleep 8; shot fewer-models; quit
 [ ! -s "$home/zitto.log" ] || { say "what it printed:"; cat "$home/zitto.log"; }
 grep -h . "$HOME/Library/Logs/DiagnosticReports"/zitto* 2>/dev/null | head -5
@@ -122,7 +134,7 @@ say "a newer version keeps the choice, and does not ask"
 echo another > "$home/installed"
 open $app; until_true 180 installed || die "not updated"
 say "updated"; until_true 30 running; sleep 10; shot updated; models; quit
-[ "$(models | wc -w | xargs)" = 3 ] || die "it changed the models"
+[ "$(models | wc -w | xargs)" = 4 ] || die "it changed the models"
 
 say "without network"
 open -n --env ZITTO_HOME=/tmp/zitto-none --env UV_OFFLINE=1 $app
@@ -141,15 +153,16 @@ mv $app /tmp/kept.app; mkdir -p /tmp/old /tmp/new; in_dmg /tmp/before.dmg
 ditto /tmp/dmg/zitto.app /tmp/old/zitto.app; ditto /tmp/kept.app /tmp/new/zitto.app; hdiutil detach /tmp/dmg > /dev/null
 say "who has the version before, complete"
 app=/tmp/old/zitto.app home=/tmp/zitto-old
-open -n --env ZITTO_HOME=$home $app; until_true 400 installed || die "the version before does not install"
+open -n --env ZITTO_HOME=$home $app; asked || die "it does not ask"; click 'button "Install"'
+until_true 400 installed || die "the version before does not install"
 until_true 30 running; sleep 8; quit; models
 app=/tmp/new/zitto.app; say "the new one"
 open -n --env ZITTO_HOME=$home $app; until_true 180 installed || die "it does not update by itself"
 until_true 30 running; sleep 10; shot from-before; models; quit; grep '^==' $home/install.log
-[ "$(models | wc -w | xargs)" = 4 ] || die "it changed the models"
+[ "$(models | wc -w | xargs)" = 5 ] && [ -e $home/models/$guitar ] || die "not the models it should have"
 say "who stopped the version before in the middle"
 app=/tmp/old/zitto.app home=/tmp/zitto-old-half
-open -n --env ZITTO_HOME=$home $app
+open -n --env ZITTO_HOME=$home $app; asked || die "it does not ask"; click 'button "Install"'
 at_models() { grep -q "Step 3" $home/install.log; }
 until_true 200 at_models || die "the version before does not install"
 sleep 5; quit; ls $home
@@ -158,7 +171,7 @@ open -n --env ZITTO_HOME=$home $app; asked || die "it does not ask"
 shot from-half; tick Lead; click 'button "Install"'
 until_true 300 installed || die "it does not go on"
 until_true 30 running; sleep 8; models; quit; grep '^==' $home/install.log
-[ ! -e $home/models/$lead ] && [ -e $home/models/$drums ] || die "not the models that were chosen"
+[ ! -e $home/models/$lead ] && [ -e $home/models/$drums ] && [ -e $home/models/$guitar ] || die "not the models that were chosen"
 
 say "as downloaded from a browser, and allowed by the user; quit in the middle, and again"
 from_browser() { ditto /tmp/kept.app "$2"; xattr -r -w com.apple.quarantine "$1;$(printf %x "$(date +%s)");Safari;12345678-1234-1234-1234-123456789012" "$2"; }
@@ -169,7 +182,7 @@ libraries() { grep -q "Step 2" $home/install.log && [ "$(du -sm $home/cache | cu
 until_true 60 libraries || die "the app that was allowed does not install"
 shot half; du -sm $home/cache; quit
 open -n --env ZITTO_HOME=$home $app; asked || die "it does not ask"; ticks
-[ "$(ticks)" = "0 1 1" ] || die "the choice was not remembered"
+[ "$(ticks)" = "0 1 1 1" ] || die "the choice was not remembered"
 click 'button "Install"'
 until_true 120 at_models || die "it does not go on"
 grep '^==' $home/install.log; sleep 5; quit
