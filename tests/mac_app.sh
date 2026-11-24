@@ -8,7 +8,7 @@ home="$HOME/Library/Application Support/zitto"
 mkdir -p shots
 say() { printf '%5d s  %s\n' $SECONDS "$*"; }
 shot() { screencapture -x "shots/$1.png"; }
-die() { say "FAILED: $*"; shot failed; tail -40 "$home/install.log" "$home/zitto.log" 2>/dev/null; exit 1; }
+die() { say "FAILED: $*"; shot failed; tail -40 "$home/install.log" "$home/zitto.log" 2>/dev/null | grep -v '%|'; exit 1; }
 until_true() { local end=$((SECONDS + $1)); shift; until "$@" >/dev/null 2>&1; do [ $SECONDS -lt $end ] || return 1; sleep 2; done; }
 running() { pgrep -f "$app/Contents/MacOS/zitto"; }
 ended() { ! running && ! pgrep -f zitto.worker; }
@@ -33,12 +33,14 @@ for minute in $(seq 15); do
   shot installing-$minute
 done
 installed || die "not installed"
-say "installed"; grep == "$home/install.log"
+say "installed"; grep '^==' "$home/install.log"; grep -E '^[0-9]+[[:space:]]' "$home/install.log"
 du -sm "$home"/* "$home"
 sleep 25; shot window
 running || die "the window did not open"
 lsappinfo info -only name,bundlepath,pid zitto
-say "quit"; quit
+say "quit, and open again at once"; quit
+open $app; sleep 10; running > /dev/null || die "it does not open again"
+quit
 
 say "a song, in the window"
 printf 'import sys\nsys.path.insert(0, "tests")\nfrom separation import *\nsf.write("song.wav", song(), RATE)\n' > make_song.py
@@ -52,23 +54,44 @@ say "separated"; sleep 8; shot separated
 ls "$home"/library/*/
 quit
 [ ! -s "$home/zitto.log" ] || { say "what it printed:"; cat "$home/zitto.log"; }
+grep -h . "$HOME/Library/Logs/DiagnosticReports"/zitto* 2>/dev/null | head -5
 
 say "command line, mp3"
-env -i HOME="$HOME" PATH=/usr/bin:/bin $app/Contents/MacOS/zitto song.wav -r voice -o out.mp3 || die "command line"
+env -i HOME="$HOME" PATH=/usr/bin:/bin $app/Contents/MacOS/zitto song.wav -r voice -o out.mp3 > cli.txt 2>&1 || { cat cli.txt; die "command line"; }
+grep -v '%|' cli.txt
 "$home/bin/ffmpeg" -hide_banner -i out.mp3 2>&1 | grep Audio
 
 say "a newer version"
 echo another > "$home/installed"
-open $app; until_true 180 installed || die "not updated"
+updated() { cmp -s "$home/installed" $app/Contents/Resources/id; }
+open $app; until_true 180 updated || die "not updated"
 say "updated"; until_true 30 running; sleep 10; shot updated; quit
 
 say "without network"
 open -n --env ZITTO_HOME=/tmp/zitto-none --env UV_OFFLINE=1 $app; sleep 12; shot no-network
 pkill -f $app/Contents/MacOS/zitto; tail -3 /tmp/zitto-none/install.log
 
-say "as downloaded from a browser: what macOS says"
-ditto $app /tmp/q/zitto.app && mv $app /tmp/kept.app
-xattr -r -w com.apple.quarantine "0083;$(printf %x "$(date +%s)");Safari;12345678-1234-1234-1234-123456789012" /tmp/q/zitto.app
+say "as downloaded from a browser, and allowed by the user; quit in the middle, and again"
+from_browser() { ditto /tmp/kept.app "$2"; xattr -r -w com.apple.quarantine "$1;$(printf %x "$(date +%s)");Safari;12345678-1234-1234-1234-123456789012" "$2"; }
+mv $app /tmp/kept.app; app=/tmp/allowed/zitto.app; home=/tmp/zitto-half
+from_browser 01c3 $app
+open -n --env ZITTO_HOME=$home $app
+libraries() { grep -q "Step 2" $home/install.log && [ "$(du -sm $home/cache | cut -f1)" -gt 200 ]; }
+until_true 60 libraries || die "the app that was allowed does not install"
+shot half; du -sm $home/cache
+osascript -e "tell application \"$app\" to quit"
+left() { pgrep -f 'install.sh|Helpers/uv|MacOS/zitto'; }
+nothing_left() { ! left; }
+until_true 10 nothing_left || { pgrep -lf 'install.sh|Helpers/uv|MacOS/zitto'; die "something is still running"; }
+open -n --env ZITTO_HOME=$home $app
+models() { grep -q "Step 3" $home/install.log; }
+until_true 120 models || die "it does not go on"
+grep '^==' $home/install.log
+osascript -e "tell application \"$app\" to quit"; until_true 10 nothing_left || die "something is still running"
+ls $home $home/models
+
+say "what macOS says the first time"
+from_browser 0083 /tmp/q/zitto.app
 spctl --assess -vv /tmp/q/zitto.app
 (open /tmp/q/zitto.app; true) & sleep 12; shot quarantine
 say "done"

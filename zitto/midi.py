@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ctypes
 import re
+import sys
+import time
 from typing import Callable, Sequence
 
 ACTIONS = ("play", "pause", "stop", "rewind")
@@ -100,6 +103,8 @@ class MidiInput:
     def __init__(self, on_message: Callable[[Sequence[int]], None]):
         import rtmidi
 
+        if sys.platform == "darwin":
+            _need_core_midi()
         self._rtmidi = rtmidi
         self._on_message = on_message
         self._probe = rtmidi.MidiIn()
@@ -137,6 +142,25 @@ class MidiInput:
             self._port.close_port()
             self._port.delete()
         self._port, self.name = None, None
+
+
+def _need_core_midi() -> None:
+    """Raise OSError when the MIDI service of the Mac does not start: rtmidi would end the whole program.
+
+    Once it has started for this process, it stays.
+    """
+    frameworks = "/System/Library/Frameworks"
+    text = ctypes.CDLL(f"{frameworks}/CoreFoundation.framework/CoreFoundation").CFStringCreateWithCString
+    text.restype, text.argtypes = ctypes.c_void_p, [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint32]
+    create = ctypes.CDLL(f"{frameworks}/CoreMIDI.framework/CoreMIDI").MIDIClientCreate
+    create.restype, create.argtypes = ctypes.c_int32, [ctypes.c_void_p] * 3 + [ctypes.POINTER(ctypes.c_uint32)]
+    name, client = text(None, b"zitto", 0x0600), ctypes.c_uint32()  # 0x0600: ASCII
+    for wait in (0, 0.3, 0.7):  # it can be closing, after the program that was using it
+        time.sleep(wait)
+        status = create(name, None, None, ctypes.byref(client))
+        if status == 0:
+            return
+    raise OSError(f"The MIDI service of macOS did not start ({status}).")
 
 
 def _base(name: str) -> str:

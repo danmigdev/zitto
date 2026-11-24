@@ -22,7 +22,7 @@ free=$(df -m . | awk 'NR == 2 {print $4}')
 have=$(du -sm . | awk '{print $1}')
 [ $((free + have)) -gt 7000 ] || fail "Not enough space on the disk: zitto needs 7 GB."
 
-step "Step 1 of 3: Python" python 110
+step "Step 1 of 3: Python" python 75
 "$uv" python install --no-bin "$version"
 python="$("$uv" python find "$version")"
 
@@ -45,6 +45,7 @@ bin/ffmpeg -version
 step "Step 3 of 3: the models" models 3100
 venv/bin/python -P -m zitto.worker --models
 
+du -sm cache python venv models
 rm -rf cache
 cp "$here/id" installed
 echo "== $(date '+%F %T') done"

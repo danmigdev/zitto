@@ -330,6 +330,7 @@ class FakeMidiIn:
 @pytest.fixture
 def fake_rtmidi(monkeypatch):
     monkeypatch.setitem(sys.modules, "rtmidi", types.SimpleNamespace(MidiIn=FakeMidiIn))
+    monkeypatch.setattr(midi, "_need_core_midi", lambda: None)
     FakeMidiIn.opened, FakeMidiIn.busy = [], False
 
 
@@ -362,6 +363,44 @@ def test_midi_messages_drive_the_mixer(fake_rtmidi):
     assert mixer.state == PLAYING
     send(0xB0, 21, 127)
     assert mixer.state == STOPPED and mixer.position == 8000
+
+
+@pytest.mark.parametrize("failures", [0, 2, 99])
+def test_the_midi_service_of_the_mac(monkeypatch, failures):
+    # When it does not start, rtmidi ends the whole program: it must not be reached.
+    class Function:
+        def __init__(self, name):
+            self.name = name
+
+        def __call__(self, *args):
+            if self.name == "MIDIClientCreate":
+                asked.append(args)
+                return -304 if len(asked) <= failures else 0
+            return 1
+
+    class Library:
+        def __init__(self, path): pass
+        def __getattr__(self, name): return Function(name)
+
+    asked = []
+    monkeypatch.setitem(sys.modules, "rtmidi", types.SimpleNamespace(MidiIn=FakeMidiIn))
+    monkeypatch.setattr(midi.sys, "platform", "darwin")
+    monkeypatch.setattr(midi.ctypes, "CDLL", Library)
+    monkeypatch.setattr(midi.time, "sleep", lambda s: None)
+    if failures > 2:
+        with pytest.raises(OSError, match="-304"):
+            midi.MidiInput(lambda m: None)
+    else:
+        midi.MidiInput(lambda m: None)
+    assert len(asked) == min(failures + 1, 3)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="only the Mac has it")
+def test_the_real_midi_service_of_the_mac():
+    try:
+        midi._need_core_midi()
+    except OSError as e:
+        assert "did not start" in str(e)
 
 
 def test_midi_port_errors_and_renumbering(fake_rtmidi):
