@@ -45,6 +45,10 @@ class Engine:
 
             Separator(log_level=self._level, model_file_dir=str(self._models_dir)).download_model_files(model.file)
 
+    def remove(self, model: Model) -> None:
+        """Delete a model from the disk. It is downloaded again when it is needed."""
+        (self._models_dir / model.file).unlink(missing_ok=True)
+
     def _load(self, model: Model, workdir: Path):
         """A model on the GPU. It stays in memory as long as the same folder is used."""
         import torch

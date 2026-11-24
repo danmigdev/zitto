@@ -2,7 +2,7 @@
 
     python -m zitto.worker WORKDIR      prepare every waiting song, then end
     python -m zitto.worker --add LINK   put a playlist in the list
-    python -m zitto.worker --models     download the models now
+    python -m zitto.worker --models     have on the disk the models in use, and not those left out
 
 Prints one JSON object per line. Being a process of its own, it can be stopped at any time,
 the window never loads torch, and the GPU memory is free again when it ends.
@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from . import audio, library
-from .models import PIECES, STEMS, current
+from .models import PIECES, STEMS, complete, current
 from .source import SourceBlocked, SourceError, Status, read_playlist
 
 DONE, BLOCKED, BUSY = 0, 2, 3  # exit codes
@@ -44,10 +44,15 @@ def split(mix: np.ndarray, engine, workdir: Path, status: Status) -> dict[str, n
         got = stems(rest, model, parts, text)
         rest = rest - sum(got.values())
         found |= got
-    voice = found.pop("voice")
-    lead = stems(voice, models.lead, ["lead"], "Separating the voices")["lead"]
-    wind = stems(rest, models.wind, ["wind"], "Separating the wind instruments")["wind"]
-    found |= {"lead": lead, "backing": voice - lead, "wind": wind, "other": rest - wind}
+    if models.lead:
+        voice = found.pop("voice")
+        lead = stems(voice, models.lead, ["lead"], "Separating the voices")["lead"]
+        found |= {"lead": lead, "backing": voice - lead}
+    if models.wind:
+        wind = stems(rest, models.wind, ["wind"], "Separating the wind instruments")["wind"]
+        found["wind"] = wind
+        rest = rest - wind
+    found["other"] = rest
     if models.drums and "drums" in found:
         rest = found.pop("drums")
         *pieces, last = PIECES["drums"]
@@ -138,6 +143,9 @@ def add(link: str) -> int:
 def download() -> int:
     from .engine import Engine
     models, engine = current().all(), Engine()
+    for model in complete().all():
+        if model not in models:
+            engine.remove(model)
     for n, model in enumerate(models, 1):
         emit("status", text=f"Model {n} of {len(models)}: {model.name}")
         try:

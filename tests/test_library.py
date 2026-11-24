@@ -186,6 +186,19 @@ def test_several_models_work_each_on_what_the_others_left(tmp_path, monkeypatch)
     np.testing.assert_allclose(sum(parts.values()), mix, rtol=1e-5)
 
 
+@pytest.mark.parametrize("without", [["lead"], ["wind"], ["drums"], ["lead", "wind"], ["lead", "wind", "drums"]])
+def test_a_song_separated_without_some_models(song_file, tmp_path, without):
+    settings.save(without=without)
+    path, mix = song_file
+    song, fake = library.add(str(path)), engine()
+    run_worker(tmp_path, fake)
+    left_out = {{"lead": LEAD, "wind": WIND, "drums": DRUMS}[name] for name in without}
+    assert [c[0] for c in fake.calls] == [m for m in (FULL, LEAD, WIND, DRUMS) if m not in left_out]
+    stems = library.load_stems(song.key)
+    assert stems.names == models.stems() and ("voice" in stems.names) == ("lead" in without)
+    np.testing.assert_allclose(mixdown(stems.data, stems.gain, [1.0] * len(stems.data)), mix, atol=4e-4)
+
+
 def test_models_do_not_run_on_silence(tmp_path):
     fake = FakeEngine({n: (lambda m: m * 0) for n in SHARES} | {"drums": lambda m: m})
     said = []

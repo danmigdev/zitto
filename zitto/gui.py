@@ -5,6 +5,7 @@ from __future__ import annotations
 import ctypes
 import os
 import queue
+import subprocess
 import sys
 import threading
 import tkinter as tk
@@ -60,6 +61,8 @@ class App:
         root.protocol("WM_DELETE_WINDOW", self.close)
         if MAC:  # Quit, in the menu: without this it ends the program at once, leaving the worker behind
             root.createcommand("::tk::mac::Quit", self.close)
+            if app := os.environ.get("ZITTO_APP"):  # Settings, in the menu
+                root.createcommand("::tk::mac::ShowPreferences", lambda: self.choose_models(app))
         self._build_list()
         self.player = PlayerView(root, self.k)
         self.player.grid(row=0, column=1, sticky="nsew")
@@ -526,6 +529,12 @@ class App:
         for key in (before, song.key):
             if key in self.songs:
                 self.update_song(key)
+
+    def choose_models(self, app: str) -> None:
+        """Only in the app for the Mac: it is done by the window that installs it."""
+        subprocess.Popen(["/usr/bin/open", "-n", "--env", f"ZITTO_HOME={settings.HOME}", app,
+                          "--args", "--models"])
+        self.close()
 
     def close(self) -> None:
         self.work.stop()

@@ -7,14 +7,15 @@ authors or the audio-separator project published it. See NOTICE.md for the credi
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
-from . import plugins
+from . import plugins, settings
 
-# The parts of a song, in the order they are shown. A set of models may tell apart only some.
-NAMES = ("lead", "backing", "drums", "bass", "guitar", "piano", "wind", "other")
-LABELS = {"lead": "Lead voice", "backing": "Backing voices", "drums": "Drums", "bass": "Bass",
-          "guitar": "Guitar", "piano": "Piano", "wind": "Wind", "other": "Other",
+# The parts of a song, in the order they are shown. A set of models may tell apart only some: where none
+# finds the lead voice, all the voices together are "voice".
+NAMES = ("voice", "lead", "backing", "drums", "bass", "guitar", "piano", "wind", "other")
+LABELS = {"voice": "Voice", "lead": "Lead voice", "backing": "Backing voices", "drums": "Drums",
+          "bass": "Bass", "guitar": "Guitar", "piano": "Piano", "wind": "Wind", "other": "Other",
           "kick": "Kick", "snare": "Snare", "toms": "Toms", "cymbals": "Cymbals"}
 # Parts that can be stored as pieces. The last piece is what the others leave.
 PIECES = {"drums": ("kick", "snare", "toms", "cymbals")}
@@ -35,12 +36,12 @@ class Model:
 @dataclass(frozen=True)
 class ModelSet:
     main: tuple[Model, ...]  # run in this order on the song, each on what the others left
-    lead: Model  # the lead voice, inside the voice
-    wind: Model  # the wind instruments, in what is left
+    lead: Model | None = None  # the lead voice, inside the voice
+    wind: Model | None = None  # the wind instruments, in what is left
     drums: Model | None = None  # the pieces of the drums, inside the drums
 
     def all(self) -> tuple[Model, ...]:
-        return (*self.main, self.lead, self.wind, *filter(None, [self.drums]))
+        return (*self.main, *filter(None, [self.lead, self.wind, self.drums]))
 
 
 _UVR = {"terms": "MIT, with credit to UVR and its developers (as their README asks)",
@@ -67,23 +68,36 @@ DRUMS = Model("MDX23C DrumSep (aufr33, jarredou)", "MDX23C-DrumSep-aufr33-jarred
 
 DEFAULT = ModelSet((FULL,), LEAD, WIND, DRUMS)
 STATED = ModelSet((VOICE, BAND), STATED_LEAD, WIND)  # only models whose authors say how they can be used
+OPTIONAL = ("lead", "wind", "drums")  # what the user can do without: "without", in the settings
 
 
-def current() -> ModelSet:
+def complete() -> ModelSet:
     if os.environ.get("ZITTO_MODELS", "").lower() == "stated":
         return STATED
     return plugins.model_set() or DEFAULT
 
 
+def current() -> ModelSet:
+    """The complete set, without what the user does without."""
+    without = settings.load().get("without")
+    left_out = [name for name in OPTIONAL if isinstance(without, list) and name in without]
+    return replace(complete(), **dict.fromkeys(left_out)) if left_out else complete()
+
+
 def provider(part: str) -> Model | None:
     """The model that finds a part in a whole song."""
     chosen = current()
-    return next((m for m in (*chosen.main, chosen.lead, chosen.wind) if part in m.parts), None)
+    return next((m for m in (*chosen.main, chosen.lead, chosen.wind) if m and part in m.parts), None)
 
 
 def parts() -> tuple[str, ...]:
     """The parts that the current models tell apart."""
-    found = {"lead", "backing", "wind", "other"}.union(*(m.parts for m in current().main))
+    chosen = current()
+    found = {"other"}.union(*(m.parts for m in chosen.main))
+    if chosen.lead:
+        found = found - {"voice"} | {"lead", "backing"}
+    if chosen.wind:
+        found.add("wind")
     return tuple(n for n in NAMES if n in found)
 
 

@@ -1,6 +1,7 @@
 // The program of zitto.app. The first time that a version is opened it installs what zitto needs,
 // showing how far it is, and opens itself again. Then it becomes zitto: Python runs inside this
 // process, so that for the Mac (Dock, menus, permissions) it is one application.
+// With --models it asks again which models to have.
 
 #import <Cocoa/Cocoa.h>
 #include <dlfcn.h>
@@ -23,6 +24,38 @@ static NSString *TextOf(NSString *path) {
     return [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
 }
 
+// What zitto can do without, as models.py calls it, and how much it takes on the disk, in megabytes.
+static const struct { const char *name, *label; int size; } extras[] = {
+    {"lead", "Lead and backing voices, each on its own", 1720},
+    {"drums", "Pieces of the drums: kick, snare, toms, cymbals", 440},
+    {"wind", "Wind instruments", 225},
+};
+enum {
+    EXTRAS = sizeof extras / sizeof *extras,
+    MODELS = 700,           // the models that are needed
+    LIBRARIES = 1500,       // Python and the libraries
+    LIBRARIES_PEAK = 2700,  // while they are installed
+    LIBRARIES_DOWNLOAD = 400,
+    ROOM = 500,             // to be left free
+};
+
+static NSDictionary *Settings(void) {
+    NSData *data = [NSData dataWithContentsOfFile:InHome(@"settings.json")];
+    id all = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
+    return [all isKindOfClass:NSDictionary.class] ? all : @{};
+}
+
+static BOOL LeftOut(int i) {
+    id without = Settings()[@"without"];
+    return [without isKindOfClass:NSArray.class] && [without containsObject:@(extras[i].name)];
+}
+
+static int ModelsSize(void) {
+    int size = MODELS;
+    for (int i = 0; i < EXTRAS; i++) if (!LeftOut(i)) size += extras[i].size;
+    return size;
+}
+
 static BOOL Installed(void) {
     NSString *wanted = TextOf([NSBundle.mainBundle pathForResource:@"id" ofType:nil]);
     return wanted.length && [wanted isEqualToString:TextOf(InHome(@"installed"))]
@@ -36,6 +69,7 @@ static void SetEnvironment(void) {
     const char *path = getenv("PATH");
     NSString *all = [NSString stringWithFormat:@"%@:%s", InHome(@"bin"), path ? path : "/usr/bin:/bin:/usr/sbin:/sbin"];
     setenv("PATH", all.fileSystemRepresentation, 1);
+    setenv("ZITTO_APP", NSBundle.mainBundle.bundlePath.fileSystemRepresentation, 1);
     unsetenv("PYTHONHOME");
     unsetenv("PYTHONPATH");
 }
@@ -87,16 +121,25 @@ static long long SizeOf(NSString *folder) {
     return size;
 }
 
+// What can still be written, counting what the Mac deletes by itself when there is need.
+static long long FreeSpace(void) {
+    NSURLResourceKey now = NSURLVolumeAvailableCapacityKey, asked = NSURLVolumeAvailableCapacityForImportantUsageKey;
+    NSDictionary *found = [[NSURL fileURLWithPath:InHome(@"")] resourceValuesForKeys:@[now, asked] error:NULL];
+    return found ? MAX([found[now] longLongValue], [found[asked] longLongValue]) : LLONG_MAX;
+}
+
 @interface Installer : NSObject <NSApplicationDelegate>
 @end
 
 @implementation Installer {
     NSWindow *_window;
-    NSTextField *_step, *_amount;
+    NSView *_page, *_choice, *_progress;  // the one being made, and the two that there are
+    NSButton *_ticks[EXTRAS], *_go, *_again;
+    NSTextField *_sum, *_step, *_amount;
     NSProgressIndicator *_bar;
-    NSButton *_again;
-    NSString *_folder, *_problem;  // what is growing, and what went wrong
-    long long _expected;           // how much it will grow
+    NSString *_folder;    // what is growing
+    long long _expected;  // how much it will grow
+    long long _have;      // what is already there
     BOOL _measuring;
     pid_t _child;
     id _awake;
@@ -108,15 +151,74 @@ static long long SizeOf(NSString *folder) {
     label.selectable = NO;
     label.font = bold ? [NSFont boldSystemFontOfSize:size] : [NSFont systemFontOfSize:size];
     if (dim) label.textColor = NSColor.secondaryLabelColor;
-    [_window.contentView addSubview:label];
+    [_page addSubview:label];
     return label;
+}
+
+- (NSButton *)tick:(NSString *)title size:(int)megabytes at:(CGFloat)y {
+    NSButton *tick = [NSButton checkboxWithTitle:title target:self action:@selector(ticked)];
+    tick.frame = NSMakeRect(24, y, 360, 20);
+    [_page addSubview:tick];
+    NSTextField *size = [self label:[NSString stringWithFormat:@"%.1f GB", megabytes / 1000.0]
+                                 at:NSMakeRect(386, y, 70, 18) size:13 bold:NO dim:YES];
+    size.alignment = NSTextAlignmentRight;
+    return tick;
 }
 
 - (NSButton *)button:(NSString *)title at:(NSRect)place action:(SEL)action target:(id)target {
     NSButton *button = [NSButton buttonWithTitle:title target:target action:action];
     button.frame = place;
-    [_window.contentView addSubview:button];
+    [_page addSubview:button];
     return button;
+}
+
+- (NSView *)page {
+    _page = [[NSView alloc] initWithFrame:_window.contentView.bounds];
+    _page.hidden = YES;
+    [_window.contentView addSubview:_page];
+    return _page;
+}
+
+- (void)show:(NSView *)page {
+    _choice.hidden = page != _choice;
+    _progress.hidden = page != _progress;
+}
+
+- (void)makeChoice {
+    BOOL change = Installed();
+    _choice = [self page];
+    [self label:change ? @"What zitto finds in a song" : @"Getting zitto ready"
+             at:NSMakeRect(24, 266, 432, 22) size:15 bold:YES dim:NO];
+    [self label:change ? @"What is unticked is removed from the disk, what is ticked is downloaded. Songs that are "
+                          "already separated keep the parts they have."
+                       : @"The first time it downloads what separates the songs on this Mac. Untick what you can do "
+                          "without: you can add it later, from the zitto menu."
+             at:NSMakeRect(24, 224, 432, 36) size:12 bold:NO dim:YES];
+    NSButton *always = [self tick:@"Voice, drums, bass, guitar, piano" size:LIBRARIES + MODELS at:186];
+    always.state = NSControlStateValueOn;
+    always.enabled = NO;
+    for (int i = 0; i < EXTRAS; i++) {
+        _ticks[i] = [self tick:@(extras[i].label) size:extras[i].size at:158 - 28 * i];
+        _ticks[i].state = LeftOut(i) ? NSControlStateValueOff : NSControlStateValueOn;
+    }
+    _sum = [self label:@"" at:NSMakeRect(24, 56, 432, 34) size:12 bold:NO dim:NO];
+    if (change) [self button:@"Cancel" at:NSMakeRect(270, 18, 96, 32) action:@selector(open) target:self];
+    else [self button:@"Quit" at:NSMakeRect(270, 18, 96, 32) action:@selector(terminate:) target:NSApp];
+    _go = [self button:change ? @"Apply" : @"Install" at:NSMakeRect(366, 18, 96, 32) action:@selector(chosen) target:self];
+    _go.keyEquivalent = @"\r";
+}
+
+- (void)makeProgress {
+    _progress = [self page];
+    [self label:@"Getting zitto ready" at:NSMakeRect(24, 266, 432, 22) size:15 bold:YES dim:NO];
+    [self label:@"When it is done it opens by itself. If you quit, the next time it goes on."
+             at:NSMakeRect(24, 224, 432, 36) size:12 bold:NO dim:YES];
+    _step = [self label:@"" at:NSMakeRect(24, 148, 432, 50) size:13 bold:NO dim:NO];
+    _bar = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(24, 120, 432, 20)];
+    [_progress addSubview:_bar];
+    _amount = [self label:@"" at:NSMakeRect(24, 96, 432, 18) size:12 bold:NO dim:YES];
+    [self button:@"Quit" at:NSMakeRect(366, 18, 96, 32) action:@selector(terminate:) target:NSApp];
+    _again = [self button:@"" at:NSMakeRect(266, 18, 100, 32) action:@selector(again) target:self];
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)note {
@@ -126,25 +228,20 @@ static long long SizeOf(NSString *folder) {
     NSApp.mainMenu = [NSMenu new];
     [NSApp.mainMenu addItem:item];
 
-    _window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 480, 230)
+    _window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 480, 310)
                                           styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskMiniaturizable
                                             backing:NSBackingStoreBuffered defer:NO];
     _window.title = @"zitto";
-    [self label:@"Getting zitto ready" at:NSMakeRect(24, 186, 432, 22) size:15 bold:YES dim:NO];
-    [self label:@"Only the first time, it downloads what it needs: about 3.5 GB. Then it opens by itself. "
-                 "If you quit, the next time it goes on."
-             at:NSMakeRect(24, 144, 432, 36) size:12 bold:NO dim:YES];
-    _step = [self label:@"" at:NSMakeRect(24, 94, 432, 34) size:13 bold:NO dim:NO];
-    _bar = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(24, 70, 432, 20)];
-    [_window.contentView addSubview:_bar];
-    _amount = [self label:@"" at:NSMakeRect(24, 26, 220, 18) size:12 bold:NO dim:YES];
-    [self button:@"Quit" at:NSMakeRect(366, 18, 96, 32) action:@selector(terminate:) target:NSApp];
-    _again = [self button:@"Try again" at:NSMakeRect(266, 18, 100, 32) action:@selector(start) target:self];
+    [NSFileManager.defaultManager createDirectoryAtPath:InHome(@"") withIntermediateDirectories:YES
+                                             attributes:nil error:NULL];
+    // A newer version goes on with what was chosen for the one before.
+    if (Installed() || access(InHome(@"installed").fileSystemRepresentation, F_OK)) [self makeChoice];
+    [self makeProgress];
     [_window center];
     [_window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
     [NSTimer scheduledTimerWithTimeInterval:1 target:self selector:@selector(measure) userInfo:nil repeats:YES];
-    [self start];
+    [self again];
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)app {
@@ -155,9 +252,44 @@ static long long SizeOf(NSString *folder) {
     if (_child > 0) killpg(_child, SIGTERM);
 }
 
+- (void)again {
+    if (!_choice) return [self start];
+    _have = 0;
+    for (NSString *folder in @[@"python", @"venv", @"cache", @"models"]) _have += SizeOf(InHome(folder));
+    [self ticked];
+    [self show:_choice];
+}
+
+- (void)ticked {
+    int extra = 0;
+    for (int i = 0; i < EXTRAS; i++) if (_ticks[i].state == NSControlStateValueOn) extra += extras[i].size;
+    int size = LIBRARIES + MODELS + extra;
+    long long room = FreeSpace(), missing = (MAX(LIBRARIES_PEAK, size) + ROOM) * 1000000LL - _have - room;
+    _go.enabled = missing <= 0;
+    _sum.textColor = missing > 0 ? NSColor.systemRedColor : NSColor.labelColor;
+    NSString *total = [NSString stringWithFormat:@"%.1f GB on the disk, where %.1f GB are free.", size / 1e3, room / 1e9];
+    if (missing > 0)
+        _sum.stringValue = [NSString stringWithFormat:@"%@ At least %.1f GB more are needed: make room, or untick "
+                            "something.", total, ceil(missing / 1e8) / 10];
+    else if (Installed()) _sum.stringValue = total;
+    else _sum.stringValue = [NSString stringWithFormat:@"%.1f GB to download, %@",
+                             (LIBRARIES_DOWNLOAD + MODELS + extra) / 1e3, total];
+}
+
+- (void)chosen {
+    NSMutableArray *without = [NSMutableArray new];
+    for (int i = 0; i < EXTRAS; i++) if (_ticks[i].state != NSControlStateValueOn) [without addObject:@(extras[i].name)];
+    NSMutableDictionary *settings = [Settings() mutableCopy];
+    settings[@"without"] = without;
+    NSData *data = [NSJSONSerialization dataWithJSONObject:settings options:NSJSONWritingPrettyPrinted error:NULL];
+    if ([data writeToFile:InHome(@"settings.json") atomically:YES]) return [self start];
+    _sum.textColor = NSColor.systemRedColor;
+    _sum.stringValue = [NSString stringWithFormat:@"Cannot write in %@", InHome(@"")];
+}
+
 - (void)start {
+    [self show:_progress];
     _again.hidden = YES;
-    _problem = nil;
     [self step:@"Starting..." folder:nil expected:0];
     // The Mac must not fall asleep in the middle of a long download.
     _awake = [NSProcessInfo.processInfo beginActivityWithOptions:NSActivityUserInitiated reason:@"Installing"];
@@ -173,19 +305,13 @@ static long long SizeOf(NSString *folder) {
 
 // Runs install.sh, in the background. The lock is also held by install.sh: it lasts until both end.
 - (BOOL)install {
-    [NSFileManager.defaultManager createDirectoryAtPath:InHome(@"") withIntermediateDirectories:YES
-                                             attributes:nil error:NULL];
     int lock = open(InHome(@"install.lock").fileSystemRepresentation, O_CREAT | O_RDWR, 0644);
-    if (lock < 0) {
-        _problem = [NSString stringWithFormat:@"Cannot write in %@", InHome(@"")];
-        return NO;
-    }
-    if (flock(lock, LOCK_EX | LOCK_NB)) {
+    if (lock >= 0 && flock(lock, LOCK_EX | LOCK_NB)) {
         [self onScreen:^{ [self step:@"Waiting for another copy of zitto, which is doing this..." folder:nil expected:0]; }];
         flock(lock, LOCK_EX);
     }
     int out[2], status = 1;
-    if (!Installed() && pipe(out) == 0) {
+    if (lock >= 0 && pipe(out) == 0) {
         posix_spawn_file_actions_t files;
         posix_spawn_file_actions_init(&files);
         posix_spawn_file_actions_adddup2(&files, out[1], STDOUT_FILENO);
@@ -202,7 +328,8 @@ static long long SizeOf(NSString *folder) {
         posix_spawnattr_setsigdefault(&how, &all);
         posix_spawnattr_setsigmask(&how, &none);
         NSString *script = [NSBundle.mainBundle pathForResource:@"install" ofType:@"sh"];
-        char *args[] = {"/bin/sh", strdup(script.fileSystemRepresentation), NULL};
+        char *args[] = {"/bin/sh", strdup(script.fileSystemRepresentation), Installed() ? "models" : "all",
+                        strdup(@(ModelsSize()).stringValue.UTF8String), NULL};
         pid_t child = 0;
         int failed = posix_spawn(&child, args[0], &files, &how, args, environ);
         close(out[1]);
@@ -219,15 +346,14 @@ static long long SizeOf(NSString *folder) {
         fclose(lines);
     }
     close(lock);
-    return Installed();
+    return status == 0 && Installed();
 }
 
-// A line of install.sh: STEP text folder megabytes, or FAIL text, separated by tabs.
+// A line of install.sh: STEP text folder megabytes, separated by tabs.
 - (void)heard:(NSString *)line {
     NSArray<NSString *> *said = [[line stringByTrimmingCharactersInSet:NSCharacterSet.newlineCharacterSet]
                                  componentsSeparatedByString:@"\t"];
     [self onScreen:^{
-        if ([said[0] isEqualToString:@"FAIL"] && said.count > 1) self->_problem = said[1];
         if ([said[0] isEqualToString:@"STEP"] && said.count > 3)
             [self step:said[1] folder:said[2] expected:said[3].longLongValue * 1000000];
     }];
@@ -263,24 +389,31 @@ static long long SizeOf(NSString *folder) {
 - (void)ended:(BOOL)done {
     [NSProcessInfo.processInfo endActivity:_awake];
     if (!done) {
-        NSString *why = _problem ?: @"It stopped. Is the internet connection working?";
-        [self step:why folder:nil expected:0];
+        [self step:FreeSpace() < 100000000 ? @"The disk is full." : @"It stopped. Is the internet connection working?"
+            folder:nil expected:0];
         _bar.hidden = YES;
+        _again.title = _choice ? @"Back" : @"Try again";
         _again.hidden = NO;
         return;
     }
     [self step:@"Ready: opening zitto..." folder:nil expected:0];
-    // Again, instead of going on here: the window of zitto needs a process that had none.
+    [self open];
+}
+
+// Again, instead of going on here: the window of zitto needs a process that had none.
+- (void)open {
     NSWorkspaceOpenConfiguration *how = [NSWorkspaceOpenConfiguration configuration];
     how.createsNewApplicationInstance = YES;
-    NSArray<NSString *> *all = NSProcessInfo.processInfo.arguments;
-    how.arguments = [all subarrayWithRange:NSMakeRange(1, all.count - 1)];
+    NSMutableArray<NSString *> *all = [NSProcessInfo.processInfo.arguments mutableCopy];
+    [all removeObjectAtIndex:0];
+    [all removeObject:@"--models"];
+    how.arguments = all;
     how.environment = @{@"ZITTO_HOME": @(getenv("ZITTO_HOME")), @"ZITTO_OUTPUT": @(getenv("ZITTO_OUTPUT"))};
     [NSWorkspace.sharedWorkspace openApplicationAtURL:NSBundle.mainBundle.bundleURL configuration:how
                                     completionHandler:^(NSRunningApplication *app, NSError *error) {
         [self onScreen:^{
             if (app && !error) [NSApp terminate:nil];
-            else [self step:@"Ready. Quit, and open zitto again." folder:nil expected:0];
+            else [self step:@"Ready. Quit, and open zitto again." folder:nil expected:0], [self show:self->_progress];
         }];
     }];
 }
@@ -290,7 +423,8 @@ static long long SizeOf(NSString *folder) {
 int main(int argc, char **argv) {
     @autoreleasepool {
         SetEnvironment();
-        if (Installed()) return RunZitto(argc, argv);
+        BOOL choose = argc == 2 && !strcmp(argv[1], "--models");
+        if (Installed() && !choose) return RunZitto(argc, argv);
         Installer *installer = [Installer new];
         NSApplication.sharedApplication.delegate = installer;
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];

@@ -9,7 +9,7 @@ from types import ModuleType
 import numpy as np
 import pytest
 
-from zitto import audio, remover, source, worker
+from zitto import audio, engine, remover, settings, source, worker
 from zitto.engine import Engine
 from zitto.models import DEFAULT, DRUMS, FULL, LEAD, STATED, WIND
 from zitto.targets import UnknownTarget, plan, resolve
@@ -117,6 +117,17 @@ def test_all_the_models_can_be_downloaded_before_they_are_needed(separator, caps
     assert separator["downloaded"] == [FULL.file, LEAD.file, WIND.file, DRUMS.file]
     assert f"Model 4 of 4: {DRUMS.name}" in capsys.readouterr().out
     assert None not in STATED.all() and len(STATED.all()) == 4 and len(DEFAULT.all()) == 4
+
+
+def test_models_left_out_are_removed_from_the_disk(separator, tmp_path, monkeypatch):
+    monkeypatch.setattr(engine, "Engine", lambda: Engine(tmp_path))
+    for model in DEFAULT.all():
+        (tmp_path / model.file).write_bytes(b"model")
+    settings.save(without=["lead", "wind"])
+    assert worker.download() == worker.DONE
+    assert separator["downloaded"] == [FULL.file, DRUMS.file]
+    assert {p.name for p in tmp_path.iterdir()} >= {FULL.file, DRUMS.file}
+    assert not any((tmp_path / m.file).exists() for m in (LEAD, WIND))
 
 
 def test_a_model_that_cannot_be_downloaded(separator, capsys):

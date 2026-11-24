@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from zitto import cli, engine, gui, library, models, plugins, remover, source, targets
+from zitto import cli, engine, gui, library, models, plugins, remover, settings, source, targets
 
 
 class Entry:
@@ -83,12 +83,12 @@ def test_a_ready_song_stays_when_its_plugin_is_gone(monkeypatch, links):
 
 @pytest.mark.parametrize("chosen", [models.DEFAULT, models.STATED])
 def test_the_models_say_their_terms(chosen):
-    for model in filter(None, (*chosen.main, chosen.lead, chosen.wind, chosen.drums)):
+    for model in chosen.all():
         assert model.terms and model.page.startswith("https://")
 
 
 def test_the_default_models_find_every_part():
-    assert models.current() is models.DEFAULT and models.parts() == models.NAMES
+    assert models.current() is models.DEFAULT and ("voice", *models.parts()) == models.NAMES
     assert targets.available() == targets.TARGETS
     assert models.stems() == ("lead", "backing", "kick", "snare", "toms", "cymbals", "bass", "guitar", "piano",
                               "wind", "other")
@@ -98,8 +98,7 @@ def test_models_with_stated_terms_can_be_asked_for(monkeypatch):
     monkeypatch.setattr(plugins, "model_set", lambda: models.DEFAULT)
     monkeypatch.setenv("ZITTO_MODELS", "Stated")  # wins over a plugin too
     assert models.current() is models.STATED
-    chosen = (*models.STATED.main, models.STATED.lead, models.STATED.wind)
-    assert not any(m.terms.startswith(("unknown", "not stated")) for m in chosen)
+    assert not any(m.terms.startswith(("unknown", "not stated")) for m in models.STATED.all())
 
 
 def test_only_the_parts_the_models_can_find_are_offered(monkeypatch):
@@ -116,6 +115,24 @@ def test_a_plugin_can_bring_other_models(monkeypatch):
     monkeypatch.setattr(plugins, "model_set", lambda: other)
     assert models.parts() == ("lead", "backing", "drums", "piano", "wind", "other")
     assert targets.plan(targets.resolve(["voice", "piano"])) == [(full, targets.resolve(["voice", "piano"]))]
+
+
+def test_the_user_can_do_without_some_models():
+    settings.save(without=["lead"])
+    assert models.parts() == ("voice", "drums", "bass", "guitar", "piano", "wind", "other")
+    assert models.current().all() == (models.FULL, models.WIND, models.DRUMS)
+    with pytest.raises(targets.UnknownTarget):
+        targets.resolve(["lead-voice"])
+    settings.save(without=["lead", "wind", "drums", "voice", "other"])  # not those that are needed
+    assert models.parts() == models.stems() == ("voice", "drums", "bass", "guitar", "piano", "other")
+    assert models.current().all() == (models.FULL,) and models.complete() is models.DEFAULT
+    assert [t.key for t in targets.available()] == ["voice", "drums", "bass", "guitar", "piano", "other"]
+
+
+@pytest.mark.parametrize("wrong", [None, 3, "lead", {"lead": 1}, [], ["nothing"], [["lead"]]])
+def test_settings_that_make_no_sense_leave_nothing_out(wrong):
+    settings.save(without=wrong)
+    assert models.current() is models.DEFAULT
 
 
 def test_long_songs_are_processed_in_pieces_without_seams():

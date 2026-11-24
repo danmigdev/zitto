@@ -13,11 +13,12 @@ from zitto.parts import target
 from zitto.waveform import HOP, columns, draw_lane, peaks
 
 N = 44100 * 4
+PARTS = models.NAMES[1:]  # those of the default models: the voice is in two
 
 pytestmark = pytest.mark.usefixtures("links")
 
 
-def make_song(letter, name, ready=True, names=models.NAMES):
+def make_song(letter, name, ready=True, names=PARTS):
     """A song of the library, separated or not."""
     song = library.add(f"https://songs.example/{letter}", name)
     if ready:
@@ -98,7 +99,7 @@ def test_one_song_is_refreshed_without_reading_the_others(window, monkeypatch):
     assert app.tree.set(row, "state") == "40%" and app.tree.set(gui.SINGLES, "state") == "1/2"
     app._work_event({"event": "progress", "percent": 90, "run": 6})  # from a worker stopped before
     assert app.tree.set(row, "state") == "40%"
-    library.save_stems(waiting, {n: np.zeros((10, 2), np.float32) for n in models.NAMES}, 1.0)
+    library.save_stems(waiting, {n: np.zeros((10, 2), np.float32) for n in PARTS}, 1.0)
     app._work_event({"event": "ready", "key": waiting, "run": 7})
     assert app.tree.set(row, "state") == "" and app.tree.set(gui.SINGLES, "state") == "2" and app.left == 0
     assert ready in app.songs
@@ -155,7 +156,7 @@ def test_a_finished_song_does_not_cut_the_one_that_is_playing(window):
     until(app, lambda: app.player.key == first)
     app.player.do("play")
     app.open(second)
-    library.save_stems(second, {n: np.zeros((N, 2), np.float32) for n in models.NAMES}, 1.0)
+    library.save_stems(second, {n: np.zeros((N, 2), np.float32) for n in PARTS}, 1.0)
     app._work_event({"event": "ready", "key": second, "run": app.work.run})
     app.root.update()
     assert app.player.key == first and app.player.mixer.state == PLAYING
@@ -183,14 +184,14 @@ def test_mute_and_solo(window):
     until(app, lambda: app.player.key == key)
     p = app.player
     p.toggle_part(2)
-    assert p.audible() == [n != "drums" for n in models.NAMES]
+    assert p.audible() == [n != "drums" for n in PARTS]
     p.toggle_solo(3)
-    assert p.audible() == [n == "bass" for n in models.NAMES]
+    assert p.audible() == [n == "bass" for n in PARTS]
     p.toggle_solo(2)  # muted: silent also when soloed
-    assert p.audible() == [n == "bass" for n in models.NAMES]
+    assert p.audible() == [n == "bass" for n in PARTS]
     p.toggle_part(2)
-    assert p.audible() == [n in ("drums", "bass") for n in models.NAMES]
-    assert p.mixer._wanted == [1.0 if n in ("drums", "bass") else 0.0 for n in models.NAMES]
+    assert p.audible() == [n in ("drums", "bass") for n in PARTS]
+    assert p.mixer._wanted == [1.0 if n in ("drums", "bass") else 0.0 for n in PARTS]
 
 
 def test_controls_act_where_they_are_drawn(window):
@@ -224,7 +225,7 @@ def test_songs_can_have_different_parts(window):
     p = app.player
     app.open(first)
     until(app, lambda: p.key == first)
-    assert p.names == models.NAMES
+    assert p.names == PARTS
     p.toggle_part(7)
     app.open(second)
     until(app, lambda: p.key == second)
@@ -237,6 +238,20 @@ def test_songs_can_have_different_parts(window):
     assert p.on == [True] * 7 + [False]
     p.leave()
     assert list(library.load_state(second)["on"]) == list(few)
+
+
+def test_every_stem_has_a_name_and_a_colour():
+    assert set(models.LABELS) == set(theme.COLORS) == set(models.STEMS)
+
+
+def test_a_song_whose_voice_is_one_part(window):
+    key = make_song("a", "Alpha", names=("voice", "drums", "bass", "guitar", "piano", "other"))
+    app = window()
+    app.open(key)
+    until(app, lambda: app.player.key == key)
+    app.player.toggle_main(0)
+    assert app.player.names[0] == "voice" and app.player.audible() == [False] + [True] * 5
+    assert player.mix_name(dict(zip(app.player.names, app.player.audible()))) == " (no voice)"
 
 
 def test_the_drums_open_into_their_pieces(window):
@@ -269,7 +284,7 @@ def test_the_drums_open_into_their_pieces(window):
 
     app.open(other)
     until(app, lambda: p.key == other)
-    assert p.names == models.NAMES and len(p.parts._rows) == len(p.wave._peaks) == 8 and p.mixer._wanted == [1.0] * 8
+    assert p.names == PARTS and len(p.parts._rows) == len(p.wave._peaks) == 8 and p.mixer._wanted == [1.0] * 8
     app.open(key)
     until(app, lambda: p.key == key)
     assert p.opened == {"drums"} and len(p.parts._rows) == 12 and level("kick") == 0
@@ -424,3 +439,17 @@ def test_quit_in_the_menu_closes_properly(window):
     app.root.tk.call("::tk::mac::Quit")
     assert closed == ["work", "window"]
     del app.root.destroy
+
+
+def test_the_app_for_the_mac_chooses_its_models_in_another_window(window, monkeypatch):
+    run, closed = [], []
+    monkeypatch.setenv("ZITTO_APP", "/Applications/zitto.app")
+    monkeypatch.setattr(gui.subprocess, "Popen", run.append)
+    app = window()
+    app.close = lambda: closed.append(True)
+    if theme.MAC:  # Settings, in the menu
+        app.root.tk.call("::tk::mac::ShowPreferences")
+    else:
+        app.choose_models("/Applications/zitto.app")
+    del app.close
+    assert closed == [True] and run[0][-3:] == ["/Applications/zitto.app", "--args", "--models"]
