@@ -40,6 +40,8 @@ def download():
 
 
 def gpu():
+    if not torch.backends.mps.is_available():
+        return say("there is no GPU that torch can use")
     say("recommended memory %.1f GB" % (torch.mps.recommended_max_memory() / 1e9))
     x = torch.randn(1000, 1000, device="mps")
     say("a product", float((x @ x).abs().mean()))

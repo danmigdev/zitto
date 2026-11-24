@@ -33,13 +33,8 @@ jobs:
       - name: Separation on the CPU
         timeout-minutes: 25
         run: ./tests/watched.sh 1200 .venv/bin/python -X faulthandler -P tests/separation.py cpu
+      # The Macs of GitHub are virtual, without a GPU that torch can use: this says when it changes.
       - name: A little work on the GPU
         if: always()
         timeout-minutes: 4
         run: ./tests/watched.sh 150 .venv/bin/python -X faulthandler -P tests/separation.py gpu
-      # The Macs of GitHub are virtual, and so is their GPU: what happens here says little of a real one.
-      - name: Separation on the GPU
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 12
-        run: ./tests/watched.sh 600 .venv/bin/python -X faulthandler -P tests/separation.py mps

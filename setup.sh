@@ -11,7 +11,8 @@ command -v ffmpeg >/dev/null || need "ffmpeg" "brew install ffmpeg"
 xcode-select -p >/dev/null 2>&1 || need "The compiler of Apple" "xcode-select --install"
 [ -x .venv/bin/python ] || "$PYTHON" -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0
+# Not the versions of Windows: on a Mac audio-separator needs torch 2.13 or newer.
+.venv/bin/python -m pip install torch==2.15.0 torchvision==0.29.2 torchaudio==2.11.0
 .venv/bin/python -m pip install --upgrade -r requirements.txt
 .venv/bin/python -m pip install --no-deps -e .
 echo

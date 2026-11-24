@@ -34,6 +34,7 @@ class Engine:
 
     def _load(self, model: Model, workdir: Path):
         """A model on the GPU. It stays in memory as long as the same folder is used."""
+        import torch
         from audio_separator.separator import Separator
 
         if (model, workdir) in self._loaded:
@@ -51,7 +52,9 @@ class Engine:
             output_format="WAV",
             use_soundfile=True,
             normalization_threshold=1.0,
-            use_autocast=True,  # nearly twice as fast on the GPU; the difference is below -66 dB
+            # Reduced precision: nearly twice as fast on an NVIDIA GPU, the difference is below -66 dB.
+            # Not on the CPU, where it is a format that many cannot compute, and takes far longer.
+            use_autocast=torch.cuda.is_available(),
             mdxc_params={"segment_size": 256, "override_model_segment_size": False, "batch_size": None,
                          "overlap": model.overlap, "pitch_shift": 0},
             # Not the 256 of these models: with their own size they would run on onnxruntime, on the CPU.
