@@ -191,10 +191,16 @@ static long long SizeOf(NSString *folder) {
         posix_spawn_file_actions_adddup2(&files, out[1], STDOUT_FILENO);
         posix_spawn_file_actions_addclose(&files, out[0]);
         posix_spawn_file_actions_addclose(&files, out[1]);
-        posix_spawnattr_t how;  // in a group, to stop all that it has started
+        // In a group, to stop all that it has started; and hearing the signals that this thread does not.
+        sigset_t all, none;
+        sigfillset(&all);
+        sigemptyset(&none);
+        posix_spawnattr_t how;
         posix_spawnattr_init(&how);
-        posix_spawnattr_setflags(&how, POSIX_SPAWN_SETPGROUP);
+        posix_spawnattr_setflags(&how, POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK);
         posix_spawnattr_setpgroup(&how, 0);
+        posix_spawnattr_setsigdefault(&how, &all);
+        posix_spawnattr_setsigmask(&how, &none);
         NSString *script = [NSBundle.mainBundle pathForResource:@"install" ofType:@"sh"];
         char *args[] = {"/bin/sh", strdup(script.fileSystemRepresentation), NULL};
         pid_t child = 0;

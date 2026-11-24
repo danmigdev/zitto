@@ -18,11 +18,23 @@ On Windows it needs Python 3.12 in `C:\Python312` and ffmpeg on the PATH. Then r
 
 ### Mac (experimental)
 
-Only with Apple Silicon (M1 or newer). **Nobody has tried it on a real Mac yet**: it is tested
-automatically on a virtual one, without a GPU, where it installs, opens and separates a song. How
-fast it is, how it sounds and how the window feels are not known. It is not in the releases.
+It needs Apple Silicon (M1 or newer), macOS 14 or newer, and 7 GB free. **Nobody has tried it on
+a real Mac yet**: it is tested automatically on virtual ones (macOS 15 and 26) without a GPU, where
+it installs, opens and separates a song. How fast it is, how it sounds and how the window feels
+are not known. If you try it, please [say how it went](https://github.com/danmigdev/zitto/issues).
 
-With [Homebrew](https://brew.sh), in a terminal:
+1. Download the dmg from the [releases](https://github.com/danmigdev/zitto/releases) (the ones
+   marked "Pre-release"), open it, and drag zitto onto Applications
+2. Open it. It has no paid certificate of Apple, so the first time macOS says that it could not
+   verify it. Choose Done, then System Settings, Privacy & Security, and at the bottom **Open Anyway**
+3. The first time it downloads by itself what it needs, about 3.5 GB: Python, the libraries, ffmpeg
+   and the [models](#how-it-works). Then it opens. If you quit in the middle, the next time it goes on
+
+Use Cmd where this page says Ctrl. Everything, songs included, is in
+`~/Library/Application Support/zitto`: to remove zitto, delete that folder and the app. The command
+line is `/Applications/zitto.app/Contents/MacOS/zitto`.
+
+To run it from the source instead, with [Homebrew](https://brew.sh), in a terminal:
 
     xcode-select --install
     brew install python@3.12 python-tk@3.12 ffmpeg
@@ -30,8 +42,7 @@ With [Homebrew](https://brew.sh), in a terminal:
     cd zitto
     ./setup.sh
 
-Then open `window.command`. Use Cmd where this page says Ctrl. If you try it, please
-[say how it went](https://github.com/danmigdev/zitto/issues).
+Then open `window.command`. `mac/build.sh` builds the dmg.
 
 ## Use
 
@@ -102,7 +113,8 @@ Names (Italian ones too): `voice`, `lead-voice`, `drums`, `bass`, `guitar`, `pia
 ## How it works
 
 Four models estimate the parts; what none of them recognises stays in "other". They are not
-part of zitto: each is downloaded to `models\` the first time it is needed.
+part of zitto: each is downloaded to `models\` the first time it is needed. (The app for the Mac
+downloads them all the first time it is opened.)
 
 | Model | Used for | Size | Terms |
 | --- | --- | --- | --- |
@@ -144,7 +156,7 @@ share it for any non-commercial purpose. Selling it, or using it commercially, i
 The source is available, but this is not an "open source" licence as the OSI defines it, since
 those cannot forbid selling.
 
-The models and the libraries that setup.bat and setup.sh install have terms of their own, listed in
+The models and the libraries that are downloaded have terms of their own, listed in
 [NOTICE.md](NOTICE.md). Those of three models are not known, and some are for non-commercial
 use only.
 

@@ -8,6 +8,10 @@ This repository contains only the code and the documents of zitto. It does not c
 does not distribute, the models and the libraries below: they are downloaded from their own
 sources to the computer of whoever installs zitto, each under its own terms.
 
+The dmg for the Mac contains zitto and [uv](https://github.com/astral-sh/uv), by Astral (MIT or
+Apache 2.0: its licences are inside the app, in `Contents/Resources/licenses`). All the rest is
+downloaded in the same way, the first time that it is opened.
+
 ## Models
 
 - **BS-Roformer-SW**. Author, origin and licence are unknown. The
@@ -33,18 +37,20 @@ the environment variable `ZITTO_MODELS` to `stated`.
 
 ## Libraries
 
-Most of the libraries that setup.bat and setup.sh install are under permissive licences (MIT, BSD, ISC,
+Most of the libraries that are installed are under permissive licences (MIT, BSD, ISC,
 Apache 2.0). Those with other conditions:
 
 | Library | Licence | Needed by |
 | --- | --- | --- |
-| diffq-fixed | CC BY-NC 4.0: not for commercial use | audio-separator |
+| diffq, diffq-fixed (not in the app for the Mac) | CC BY-NC 4.0: not for commercial use | audio-separator |
 | soxr | LGPL 2.1 or later | librosa |
 | certifi, tqdm | MPL 2.0 | requests, audio-separator |
 
 The versions of PyTorch for NVIDIA GPUs include CUDA libraries, under the terms of NVIDIA.
-ffmpeg is a separate program, installed by the user and run as such; its licence (LGPL or GPL)
-depends on the build.
+ffmpeg is a separate program, run as such; its licence (LGPL or GPL) depends on the build. On
+Windows the user installs it. The app for the Mac downloads the one of
+[imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg), under the GPL, and Python from
+[python-build-standalone](https://github.com/astral-sh/python-build-standalone).
 
 Thanks to [audio-separator](https://github.com/nomadkaraoke/python-audio-separator) (MIT),
 which runs most of the models, and to

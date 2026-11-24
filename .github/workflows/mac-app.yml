@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main, mac-app]
-    paths: [mac/**, zitto/**, requirements.txt, pyproject.toml, tests/mac_app.sh, .github/workflows/mac-app.yml]
+    paths: [mac/**, zitto/**, requirements.txt, pyproject.toml, NOTICE.md, tests/mac_app.sh, .github/workflows/mac-app.yml]
 permissions:
   contents: read
 jobs:
