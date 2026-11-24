@@ -45,7 +45,8 @@ if [ "$what" = all ]; then
     rm -rf cache  # before the models: less free space is needed
 fi
 
-step "Step 3 of 3: the models" models "$megabytes"
+if [ "$what" = all ]; then text="Step 3 of 3: the models"; else text="The models"; fi
+step "$text" models "$megabytes"
 rm -f models/*.partial  # of downloads that were stopped
 venv/bin/python -P -m zitto.worker --models
 du -sm models

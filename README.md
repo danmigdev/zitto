@@ -18,7 +18,7 @@ On Windows it needs Python 3.12 in `C:\Python312` and ffmpeg on the PATH. Then r
 
 ### Mac
 
-It needs Apple Silicon (M1 or newer), macOS 14 or newer, and 5 GB free, or 3 without the optional
+It needs Apple Silicon (M1 or newer), macOS 14 or newer, and 5.5 GB free, or 3.5 without the optional
 [models](#how-it-works). Each version is tested automatically on macOS 15 and 26, on virtual Macs
 without a GPU. It has been used on few real ones so far: if something is not right, please
 [open an issue](https://github.com/danmigdev/zitto/issues).

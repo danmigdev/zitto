@@ -1,7 +1,7 @@
 zitto for the Mac
 
-It needs an Apple Silicon Mac (M1 or newer), macOS 14 or newer, 5 GB free on the disk (3 without the
-optional models).
+It needs an Apple Silicon Mac (M1 or newer), macOS 14 or newer, 5.5 GB free on the disk (3.5 without
+the optional models).
 
 1. Drag zitto onto Applications.
 

@@ -34,9 +34,9 @@ enum {
     EXTRAS = sizeof extras / sizeof *extras,
     MODELS = 700,           // the models that are needed
     LIBRARIES = 1500,       // Python and the libraries
-    LIBRARIES_PEAK = 2700,  // while they are installed
+    LIBRARIES_PEAK = 2400,  // while they are installed
     LIBRARIES_DOWNLOAD = 400,
-    ROOM = 500,             // to be left free
+    ROOM = 800,             // to be left free
 };
 
 static NSDictionary *Settings(void) {
