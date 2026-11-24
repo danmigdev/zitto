@@ -7,14 +7,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-15]
+        include:
+          - {os: windows-latest, python: from python.org}  # Tk 8.6
+          - {os: macos-15, python: from python.org}  # Tk 8.6
+          - {os: macos-15, python: from Homebrew}  # Tk 9, as in the README
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
+        if: matrix.python == 'from python.org'
         with:
           python-version: "3.12"
+      - name: Python from Homebrew
+        if: matrix.python == 'from Homebrew'
+        run: |
+          brew install python@3.12 python-tk@3.12
+          "$(brew --prefix)/bin/python3.12" -m venv "$RUNNER_TEMP/venv"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
       - name: ffmpeg
         shell: bash
         run: if [ "$RUNNER_OS" = macOS ]; then brew install ffmpeg; else choco install ffmpeg -y --no-progress; fi
@@ -25,6 +35,7 @@ jobs:
       - name: Tests
         shell: bash
         run: |
+          python -c "import sys, tkinter; print(sys.version, 'Tk', tkinter.Tcl().call('info', 'patchlevel'))"
           if [ "$RUNNER_OS" = macOS ]; then
             python -m pytest -v -rs -p no:cacheprovider -o faulthandler_timeout=60 --ignore=tests/test_window.py
             python tests/one_by_one.py tests/test_window.py

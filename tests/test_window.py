@@ -7,7 +7,7 @@ import tkinter as tk
 import numpy as np
 import pytest
 
-from zitto import gui, library, models, player
+from zitto import gui, library, models, player, theme
 from zitto.mixer import PLAYING
 from zitto.parts import target
 from zitto.waveform import HOP, columns, draw_lane, peaks
@@ -317,6 +317,55 @@ def test_the_state_of_the_parts_comes_back(window):
     until(again, lambda: again.player.key == key)  # the last song opens by itself
     p = again.player
     assert (p.on[0], p.solo[4], p.volume[2], p.mixer.loop, p.mixer.loop_on) == (False, True, 0.3, (44100, 88200), True)
+
+
+def open_wave(window):
+    key = make_song("a", "Alpha")
+    app = window()
+    app.open(key)
+    until(app, lambda: app.player.key == key)
+    app.root.deiconify()
+    app.root.attributes("-alpha", 0.0)
+    app.root.geometry("1200x600")
+    for _ in range(5):
+        app.root.update()
+        time.sleep(0.01)
+    return app, app.player.wave
+
+
+def test_a_notch_of_the_wheel_zooms_a_little(window):
+    app, wave = open_wave(window)
+    before = wave._per_pixel
+    wave._body.event_generate("<MouseWheel>", delta=theme.NOTCH, x=100, y=10)
+    app.root.update()
+    assert wave._per_pixel == pytest.approx(before * 0.8, rel=0.01)
+    first = wave._first
+    wave._body.event_generate("<Shift-MouseWheel>", delta=-theme.NOTCH, x=100, y=10)
+    app.root.update()
+    assert wave._per_pixel == pytest.approx(before * 0.8, rel=0.01) and wave._first > first
+
+
+@pytest.mark.skipif(not theme.TK9, reason="Tk 8 has no event of the touchpad")
+def test_two_fingers_on_the_touchpad(window):
+    app, wave = open_wave(window)
+    before = wave._per_pixel
+    wave._body.event_generate("<TouchpadScroll>", delta=30, x=100, y=10)
+    app.root.update()
+    assert wave._per_pixel == pytest.approx(before * 0.8, rel=0.01)
+    first = wave._first
+    wave._body.event_generate("<TouchpadScroll>", delta=(-20 & 0xffff) << 16 | 3, x=100, y=10)
+    app.root.update()
+    assert wave._per_pixel == pytest.approx(before * 0.8, rel=0.01)
+    assert wave._first - first == pytest.approx(20 * wave._per_pixel, rel=0.05)
+
+
+@pytest.mark.parametrize("x, y", [(0, 0), (3, -4), (-3, 4), (-1, -1), (0, 30), (-32768, 32767)])
+def test_both_fingers_movements_are_in_one_number(x, y):
+    packed = (x & 0xffff) << 16 | y & 0xffff
+    for delta in (packed, packed - (1 << 32)):  # it can arrive with a sign or without
+        event = tk.Event()
+        event.delta = delta
+        assert theme.two_fingers(event) == (x, y)
 
 
 def test_resizing_keeps_the_same_stretch_of_music(window):

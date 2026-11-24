@@ -7,6 +7,8 @@ import tkinter as tk
 from tkinter import ttk
 
 MAC = sys.platform == "darwin"
+TK9 = tk.TkVersion >= 9
+NOTCH = 4 if MAC and not TK9 else 120  # what an event of the wheel counts for a notch, more or less
 
 BG, PANEL, BUTTON, HOVER, EDGE = "#14171c", "#1b1f26", "#262c36", "#343c49", "#2a303a"
 TEXT, DIM, ACCENT, BAD = "#e6e9ee", "#8a93a1", "#f5c451", "#ff7a7a"
@@ -34,7 +36,15 @@ def scale(root: tk.Tk) -> float:
 
 def wheel_steps(event) -> float:
     """How far the wheel was turned: 1 for a notch away from the user."""
-    return event.delta * 0.25 if MAC else event.delta / 120
+    return event.delta / NOTCH
+
+
+def two_fingers(event) -> tuple[int, int]:
+    """How far two fingers moved on a touchpad, in pixels: right and down are positive.
+
+    Only Tk 9 tells them from a wheel. Its event holds both, 16 bits each.
+    """
+    return tuple((n & 0xffff ^ 0x8000) - 0x8000 for n in (event.delta >> 16, event.delta))
 
 
 def apply(root: tk.Tk, k: float) -> None:

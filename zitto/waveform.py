@@ -9,7 +9,7 @@ import numpy as np
 
 from .mixer import RATE
 from .surface import Surface
-from .theme import font, rgb, wheel_steps
+from .theme import TK9, font, rgb, two_fingers, wheel_steps
 
 HOP = 64  # samples per stored peak: the closest zoom
 BACK, GRID, TEXT = "#14171c", "#2a303a", "#8a93a1"
@@ -97,6 +97,8 @@ class Waveform(tk.Frame):
             area.bind("<Motion>", self._hover)
             area.bind("<MouseWheel>", lambda e: self.zoom(0.8 ** wheel_steps(e), e.x))
             area.bind("<Shift-MouseWheel>", lambda e: self.pan(-wheel_steps(e) * 0.15))
+            if TK9:
+                area.bind("<TouchpadScroll>", self._two_fingers)
 
     # --- content ----------------------------------------------------------
 
@@ -157,6 +159,14 @@ class Waveform(tk.Frame):
         at = self._pos(x)
         per_pixel = self._clamp_zoom(self._per_pixel * factor)
         self._set_view(at - x * per_pixel, per_pixel)
+
+    def _two_fingers(self, event) -> None:
+        """Across the music it scrolls, along the lanes it zooms. Never both at once."""
+        x, y = two_fingers(event)
+        if abs(x) > abs(y):
+            self.pan(-x / max(self._body.winfo_width(), 1))
+        else:
+            self.zoom(0.8 ** (y / 30), event.x)
 
     def pan(self, pages: float) -> None:
         self._set_view(self._first + pages * self._body.winfo_width() * self._per_pixel, self._per_pixel)

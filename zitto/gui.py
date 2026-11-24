@@ -135,7 +135,8 @@ class App:
         self.tree.bind("<Return>", lambda e: self.open_selected())
         self.tree.bind("<Delete>", lambda e: self.delete_selected())
         self.tree.bind("<F2>", lambda e: self.rename_selected())
-        for click in ("<Button-2>", "<Control-Button-1>") if MAC else ("<Button-3>",):
+        # The right button of a Mac is 2 in Tk 8 and 3 in Tk 9.
+        for click in ("<Button-2>", "<Button-3>", "<Control-Button-1>") if MAC else ("<Button-3>",):
             self.tree.bind(click, self._menu)
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._explain())
 
