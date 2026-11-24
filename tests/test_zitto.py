@@ -1,9 +1,13 @@
 """Unit tests: no GPU, models or network. The ffmpeg round trip needs ffmpeg on PATH."""
 
+import sys
+from types import ModuleType
+
 import numpy as np
 import pytest
 
 from zitto import audio, remover, source
+from zitto.engine import Engine
 from zitto.models import FULL, LEAD
 from zitto.targets import UnknownTarget, plan, resolve
 
@@ -69,6 +73,28 @@ def test_different_models_run_in_cascade(tmp_path):
     assert [c[0] for c in engine.calls] == [LEAD, FULL]
     np.testing.assert_allclose(engine.calls[1][2], 0.2, rtol=1e-5)
     np.testing.assert_allclose(rest, 0.1, rtol=1e-5)
+
+
+@pytest.mark.parametrize("cuda", [True, False])
+def test_reduced_precision_only_on_the_gpu(tmp_path, monkeypatch, cuda):
+    # On a CPU that cannot compute it, the wind model does not finish.
+    given = {}
+
+    class Separator:
+        def __init__(self, **options):
+            given.update(options)
+
+        def load_model(self, file):
+            given["file"] = file
+
+    torch, package, inner = ModuleType("torch"), ModuleType("audio_separator"), ModuleType("audio_separator.separator")
+    torch.cuda = ModuleType("torch.cuda")
+    torch.cuda.is_available = lambda: cuda
+    inner.Separator = Separator
+    for name, module in (("torch", torch), ("audio_separator", package), ("audio_separator.separator", inner)):
+        monkeypatch.setitem(sys.modules, name, module)
+    Engine(tmp_path)._load(FULL, tmp_path)
+    assert given["file"] == FULL.file and given["use_autocast"] is cuda
 
 
 def test_silence_does_not_reach_the_engine(tmp_path):
