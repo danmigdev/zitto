@@ -1,5 +1,6 @@
 """The real window, not shown, without sound card, MIDI, GPU or network."""
 
+import sys
 import time
 import tkinter as tk
 
@@ -301,6 +302,7 @@ def test_what_is_under_the_mouse(x, y, what):
     assert target(x, y, 186, 60, 32) == what
 
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="Tk hangs with two windows in a process")
 def test_the_state_of_the_parts_comes_back(window):
     key = make_song("a", "Alpha")
     app = window()
