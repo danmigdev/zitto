@@ -129,7 +129,8 @@ def my_models():
 - `drums`, if it is given, finds `kick`, `snare` and `toms` inside the drums. The cymbals are the rest
 - `main` runs in order on the song, each model on what the others left. Together they must find
   at least `voice`
-- `lead` finds the lead voice inside the voice, `wind` the wind instruments in what is left
+- `lead` finds the lead voice inside the voice, `wind` the wind instruments in what is left. Both can
+  be left out: without `lead`, the voice is one part
 - The dictionary says what each part is called inside the model. The parts are `voice`, `lead`,
   `drums`, `bass`, `guitar`, `piano`, `wind`, `other`; the window shows those that are found
 - The file is one that [audio-separator](https://github.com/nomadkaraoke/python-audio-separator)
