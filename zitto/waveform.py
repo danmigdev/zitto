@@ -8,7 +8,8 @@ from typing import Callable
 import numpy as np
 
 from .mixer import RATE
-from .surface import Surface, rgb
+from .surface import Surface
+from .theme import font, rgb, wheel_steps
 
 HOP = 64  # samples per stored peak: the closest zoom
 BACK, GRID, TEXT = "#14171c", "#2a303a", "#8a93a1"
@@ -82,19 +83,20 @@ class Waveform(tk.Frame):
 
         self._marks = tk.Canvas(self, bg=BACK, height=self.ruler, highlightthickness=0, bd=0)
         self._marks.pack(fill="x")
-        self._body = tk.Frame(self, bg="", takefocus=0)  # drawn by the surface, not by Tk
+        self._surface = Surface(self)
+        self._body = self._surface.widget
         self._body.pack(fill="both", expand=True)
-        self._surface = Surface(self._body.winfo_id())
         self._body.bind("<Configure>", lambda e: self._resized())
-        self._body.bind("<Expose>", lambda e: self._show())
+        if self._surface.forgets:
+            self._body.bind("<Expose>", lambda e: self._show())
         self._body.bind("<Destroy>", lambda e: self._surface.close())
         for area in (self._body, self._marks):
             area.bind("<ButtonPress-1>", self._press)
             area.bind("<B1-Motion>", self._move)
             area.bind("<ButtonRelease-1>", self._release)
             area.bind("<Motion>", self._hover)
-            area.bind("<MouseWheel>", lambda e: self.zoom(0.8 if e.delta > 0 else 1.25, e.x))
-            area.bind("<Shift-MouseWheel>", lambda e: self.pan(-e.delta / 120 * 0.15))
+            area.bind("<MouseWheel>", lambda e: self.zoom(0.8 ** wheel_steps(e), e.x))
+            area.bind("<Shift-MouseWheel>", lambda e: self.pan(-wheel_steps(e) * 0.15))
 
     # --- content ----------------------------------------------------------
 
@@ -234,7 +236,7 @@ class Waveform(tk.Frame):
     def _draw_marks(self, width: int) -> None:
         self._marks.delete("all")
         for x, text in self._ticks():
-            self._marks.create_text(x + 4, self.ruler / 2, anchor="w", fill=TEXT, font=("Segoe UI", 8), text=text)
+            self._marks.create_text(x + 4, self.ruler / 2, anchor="w", fill=TEXT, font=font(8), text=text)
 
     def _background(self) -> np.ndarray:
         """The colour of each column where there is no sound: loop, time marks."""

@@ -10,7 +10,6 @@ the window never loads torch, and the GPU memory is free again when it ends.
 from __future__ import annotations
 
 import json
-import msvcrt
 import sys
 import tempfile
 from pathlib import Path
@@ -108,8 +107,13 @@ def _lock():
     library.ROOT.mkdir(parents=True, exist_ok=True)
     file = open(library.ROOT / "worker.lock", "a+b")
     try:
-        file.seek(0)
-        msvcrt.locking(file.fileno(), msvcrt.LK_NBLCK, 1)
+        if sys.platform == "win32":
+            import msvcrt
+            file.seek(0)
+            msvcrt.locking(file.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         file.close()
         return None

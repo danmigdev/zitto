@@ -78,6 +78,8 @@ class Engine:
             self._loaded.pop((model, workdir), None)
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        elif torch.backends.mps.is_available():
+            torch.mps.empty_cache()
 
     def stems(self, audio: np.ndarray, model: Model, parts: list[str], workdir: Path) -> dict[str, np.ndarray]:
         """Separate `audio` and return the parts wanted, at the same scale as the input."""
