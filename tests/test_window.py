@@ -356,6 +356,101 @@ def test_the_state_of_the_parts_comes_back(window):
     assert (p.on[0], p.solo[4], p.volume[2], p.mixer.loop, p.mixer.loop_on) == (False, True, 0.3, (44100, 88200), True)
 
 
+# --- pitch ---------------------------------------------------------------------------
+
+def test_the_pitch_of_a_song(window):
+    key = make_song("a", "Alpha", names=models.stems())
+    other = make_song("b", "Beta")
+    app = window()
+    p = app.player
+    app.open(key)
+    until(app, lambda: p.key == key)
+    assert p.shift() is None and p.mixer._shift is None and p.pitch_texts["semitones"].cget("text") == "0 semitones"
+    p.move_pitch("semitones", 2)
+    p.move_pitch("cents", -15)
+    shift = p.mixer._shift
+    assert shift.cents == 185
+    assert {n for n, changed in zip(models.stems(), shift.stems) if not changed} == set(models.PIECES["drums"])
+    assert {n for n, natural in zip(models.stems(), shift.natural) if natural} == {"lead", "backing"}
+    assert p.pitch_texts["semitones"].cget("text") == "+2 semitones"
+    assert p.pitch_texts["cents"].cget("text") == "−15 cents"
+    p.toggle_drums()
+    p.toggle_natural()
+    assert all(p.mixer._shift.stems) and not any(p.mixer._shift.natural)
+
+    app.open(other)
+    until(app, lambda: p.key == other)
+    assert p.mixer._shift is None and (p.semitones, p.cents, p.drums_too, p.natural) == (0, 0, False, True)
+    p.move_pitch("semitones", -1)
+    assert p.pitch_texts["semitones"].cget("text") == "−1 semitone"
+    assert [n for n, changed in zip(PARTS, p.mixer._shift.stems) if not changed] == ["drums"]
+    app.open(key)
+    until(app, lambda: p.key == key)
+    assert (p.semitones, p.cents, p.drums_too, p.natural) == (2, -15, True, False) and p.mixer._shift.cents == 185
+    for _ in range(30):
+        p.move_pitch("semitones", 1)
+        p.move_pitch("cents", -5)
+    assert (p.semitones, p.cents) == (player.SEMITONES, -player.CENTS)
+    p.set_pitch(0, 0)
+    assert p.mixer._shift is None
+
+
+def test_the_pitch_with_keys_and_wheel(window):
+    key = make_song("a", "Alpha")
+    app = window()
+    app.open(key)
+    until(app, lambda: app.player.key == key)
+    p = app.player
+    app.root.deiconify()
+    app.root.attributes("-alpha", 0.0)
+    app.root.update()
+    p.wave.focus_force()
+    app.root.update()
+    if not theme.MAC:  # there the window does not always get the keys
+        for sequence in ("<plus>", "<plus>", "<plus>", "<minus>"):
+            p.wave.event_generate(sequence)
+        assert p.semitones == 2
+    p.set_pitch(2, 0)
+    p._turn_pitch("cents", 0.6)
+    assert p.cents == 0
+    p._turn_pitch("cents", 0.6)
+    assert p.cents == 1
+    p.pitch_texts["semitones"].event_generate("<MouseWheel>", delta=-theme.NOTCH)
+    app.root.update()
+    assert p.semitones == 1
+
+
+def test_a_state_that_makes_no_sense_is_not_believed(window):
+    key = make_song("a", "Alpha")
+    library.save_state(key, {"semitones": 99, "cents": None, "natural": False})
+    app = window()
+    app.open(key)
+    until(app, lambda: app.player.key == key)
+    assert (app.player.semitones, app.player.cents, app.player.natural) == (player.SEMITONES, 0, False)
+
+
+def test_the_pitch_is_in_what_is_saved(window, monkeypatch, tmp_path):
+    key = make_song("a", "Alpha")
+    app = window()
+    app.open(key)
+    until(app, lambda: app.player.key == key)
+    p, asked, written = app.player, {}, []
+    monkeypatch.setattr(player, "DEFAULT_OUT", tmp_path)
+    monkeypatch.setattr(player.filedialog, "asksaveasfilename",
+                        lambda **options: asked.update(options) or str(tmp_path / "result.wav"))
+    monkeypatch.setattr(player.audio, "encode", lambda sound, *a, **k: written.append(sound))
+    p.move_pitch("semitones", -3)
+    p.toggle_part(p.names.index("drums"))
+    p.save()
+    p.set_pitch(0, 0)  # what is being saved stays as it was
+    until(app, lambda: not p.saving or p._results)
+    assert asked["initialfile"] == "Alpha (no drums) (-3 semitones).mp3"
+    expected = player.mixdown(p.stems.data, p.stems.gain, list(p.levels().values()),
+                              player.Shift(-300, tuple(n != "drums" for n in PARTS),
+                                           tuple(n in ("lead", "backing") for n in PARTS)))
+    np.testing.assert_allclose(written[0], expected, atol=1e-6)
+
+
 def open_wave(window):
     key = make_song("a", "Alpha")
     app = window()

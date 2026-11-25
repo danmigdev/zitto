@@ -10,7 +10,7 @@ import pytest
 from zitto import midi
 from zitto.library import StemSet
 from zitto.mixer import FADE, MIN_LOOP, PAUSED, PLAYING, STOPPED, Mixer, mixdown
-from zitto.player import all_peaks, controls, heard, mix_name
+from zitto.player import all_peaks, controls, heard, mix_name, pitch_name
 
 N = 40000
 
@@ -453,6 +453,14 @@ def test_mix_name(off, name):
 def test_all_the_pieces_are_the_drums(off, name):
     stems = ("lead", "backing", "kick", "snare", "toms", "cymbals", "bass", "guitar", "other")
     assert mix_name({s: s not in off for s in stems}) == name
+
+
+@pytest.mark.parametrize("cents, name", [
+    (0, ""), (100, " (+1 semitone)"), (-100, " (-1 semitone)"), (300, " (+3 semitones)"), (-1200, " (-12 semitones)"),
+    (215, " (+2.15 semitones)"), (-150, " (-1.5 semitones)"), (15, " (+15 cents)"), (-99, " (-99 cents)"),
+])
+def test_pitch_name(cents, name):
+    assert pitch_name(cents) == name
 
 
 # --- parts and pieces ------------------------------------------------------------------

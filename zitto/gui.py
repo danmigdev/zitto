@@ -55,7 +55,7 @@ class App:
         theme.apply(root, self.k)
         root.title("zitto")
         root.geometry(f"{self.px(1400)}x{self.px(760)}")
-        root.minsize(self.px(1120), self.px(560))
+        root.minsize(self.px(1120), self.px(600))
         root.columnconfigure(1, weight=1)
         root.rowconfigure(0, weight=1)
         root.protocol("WM_DELETE_WINDOW", self.close)
@@ -156,6 +156,8 @@ class App:
         keys = {"<space>": lambda: player.do("toggle"), "<Home>": lambda: player.do("rewind"),
                 "<Escape>": lambda: player.do("clear_loop"), "<Key-l>": player.toggle_loop,
                 f"<{command}-s>": player.save}
+        for key, step in (("plus", 1), ("KP_Add", 1), ("minus", -1), ("KP_Subtract", -1)):
+            keys[f"<{key}>"] = lambda step=step: player.move_pitch("semitones", step)
         for i in range(len(NAMES)):
             keys[f"<Key-{i + 1}>"] = lambda i=i: player.toggle_main(i)
         for key, action in keys.items():

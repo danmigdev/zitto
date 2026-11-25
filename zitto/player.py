@@ -17,11 +17,14 @@ from .mixer import PAUSED, PLAYING, RATE, STOPPED, Mixer, mixdown
 from .models import LABELS, PIECES, whole
 from .models import stems as current_stems
 from .parts import PartControls
+from .pitch import Shift
 from .source import safe_filename
-from .theme import ACCENT, BG, BUTTON, COLORS, DIM, EDGE, TEXT, button, font
+from .theme import ACCENT, BG, BUTTON, COLORS, DIM, EDGE, HOVER, TEXT, button, font, wheel_steps
 from .waveform import Waveform, clock, peaks
 
 NO_PORT = "Off"
+VOICES = ("voice", "lead", "backing")
+SEMITONES, CENTS = 12, 100  # how far the pitch goes, up and down
 
 
 class Output:
@@ -74,6 +77,13 @@ def mix_name(audible: dict[str, bool]) -> str:
     if not off:
         return ""
     return f" (only {words(on)})" if len(on) < len(off) else f" (no {words(off)})"
+
+
+def pitch_name(cents: int) -> str:
+    """The same for the pitch: " (+2 semitones)", " (-15 cents)", or nothing."""
+    if cents % 100 and abs(cents) < 100:
+        return f" ({cents:+} cents)"
+    return f" ({cents / 100:+g} semitone{'' if abs(cents) == 100 else 's'})" if cents else ""
 
 
 def controls(stems: tuple[str, ...]) -> list[tuple[str, int | None]]:
@@ -137,6 +147,9 @@ class PlayerView(tk.Frame):
         self.opened: set[str] = set()  # parts whose pieces are shown
         self.peaks: dict[str, np.ndarray] = {}
         self.on, self.solo, self.volume = [], [], []
+        self.semitones, self.cents = 0, 0
+        self.drums_too, self.natural = False, True  # whether the drums change pitch, and the voices keep their timbre
+        self._turned = {"semitones": 0.0, "cents": 0.0}  # by the wheel, not yet a step
         self._results: list[tuple[bool, str]] = []  # of saving, from its thread
         self._shown: dict = {}  # last options given to each widget
 
@@ -150,6 +163,7 @@ class PlayerView(tk.Frame):
 
         self._build()
         self._apply_levels()
+        self._apply_pitch()
         try:
             self.output = Output()
         except Exception as e:
@@ -211,8 +225,26 @@ class PlayerView(tk.Frame):
         self.loop_text = tk.Label(bar, bg=BG, fg=DIM, font=font(10, mono=True))
         self.loop_text.pack(side="left", padx=self.px(8))
 
+        tune = tk.Frame(self, bg=BG)
+        tune.grid(row=4, column=0, columnspan=2, sticky="w", padx=side, pady=self.px(4))
+        tk.Label(tune, text="Pitch", bg=BG, fg=DIM, font=font(10)).pack(side="left", padx=gap)
+        self.pitch_texts = {}
+        for what, step, width in (("semitones", 1, 13), ("cents", 5, 10)):
+            self.button(tune, "\N{MINUS SIGN}", lambda w=what, s=step: self.move_pitch(w, -s), 2).pack(side="left")
+            text = self.pitch_texts[what] = tk.Label(tune, bg=BG, font=font(10, bold=True), width=width)
+            text.pack(side="left")
+            text.bind("<MouseWheel>", lambda e, w=what: self._turn_pitch(w, wheel_steps(e)))
+            self.button(tune, "+", lambda w=what, s=step: self.move_pitch(w, s), 2).pack(
+                side="left", padx=(0, self.px(18)))
+        self.button(tune, "Reset", lambda: self.set_pitch(0, 0)).pack(side="left", padx=gap)
+        tk.Frame(tune, bg=EDGE, width=1).pack(side="left", fill="y", padx=self.px(8))
+        self.drums_button = self.button(tune, "Drums too", self.toggle_drums)
+        self.drums_button.pack(side="left", padx=gap)
+        self.natural_button = self.button(tune, "Natural voice", self.toggle_natural)
+        self.natural_button.pack(side="left", padx=gap)
+
         foot = tk.Frame(self, bg=BG)
-        foot.grid(row=4, column=0, columnspan=2, sticky="w", padx=side, pady=(self.px(4), self.px(12)))
+        foot.grid(row=5, column=0, columnspan=2, sticky="w", padx=side, pady=(self.px(4), self.px(12)))
         tk.Label(foot, text="MIDI", bg=BG, fg=DIM, font=font(10)).pack(side="left", padx=gap)
         self.port = ttk.Combobox(foot, state="readonly", width=24, takefocus=0, values=[NO_PORT])
         self.port.set(NO_PORT)
@@ -290,7 +322,9 @@ class PlayerView(tk.Frame):
         loop = self.mixer.loop
         return {"on": dict(zip(self.names, self.on)), "solo": dict(zip(self.names, self.solo)),
                 "volume": dict(zip(self.names, self.volume)), "loop": list(loop) if loop else None,
-                "loop_on": self.mixer.loop_on, "position": self.mixer.position, "opened": sorted(self.opened)}
+                "loop_on": self.mixer.loop_on, "position": self.mixer.position, "opened": sorted(self.opened),
+                "semitones": self.semitones, "cents": self.cents, "drums_too": self.drums_too,
+                "natural": self.natural}
 
     def _restore(self, state: dict) -> None:
         def part(kind, name, default):
@@ -311,6 +345,8 @@ class PlayerView(tk.Frame):
             self.mixer.enable_loop(bool(state.get("loop_on")))
         self.mixer.seek(int(state.get("position") or 0))
         self._apply_levels()
+        self.drums_too, self.natural = bool(state.get("drums_too")), bool(state.get("natural", True))
+        self.set_pitch(int(state.get("semitones") or 0), int(state.get("cents") or 0))
 
     # --- actions ----------------------------------------------------------
 
@@ -367,10 +403,55 @@ class PlayerView(tk.Frame):
             self.parts.show(row, audible[i], not self.on[i], self.solo[i], self.volume[i])
         self.wave.set_audible([audible[i] for i in self.rows])
 
+    # --- pitch ------------------------------------------------------------
+
+    def shift(self) -> Shift | None:
+        """What to do to the pitch of the stems of the song."""
+        cents = 100 * self.semitones + self.cents
+        if not (cents and self.stems):
+            return None
+        names = self.stems.names
+        return Shift(cents, tuple(self.drums_too or (whole(n) or n) != "drums" for n in names),
+                     tuple(self.natural and n in VOICES for n in names))
+
+    def set_pitch(self, semitones: int, cents: int) -> None:
+        self.semitones = min(max(semitones, -SEMITONES), SEMITONES)
+        self.cents = min(max(cents, -CENTS), CENTS)
+        self._apply_pitch()
+
+    def move_pitch(self, what: str, step: int) -> None:
+        """`what`: "semitones" or "cents"."""
+        self.set_pitch(self.semitones + step * (what == "semitones"), self.cents + step * (what == "cents"))
+
+    def _turn_pitch(self, what: str, turn: float) -> None:
+        self._turned[what] += turn
+        steps = int(self._turned[what])
+        self._turned[what] -= steps
+        self.move_pitch(what, steps)
+
+    def toggle_drums(self) -> None:
+        self.drums_too = not self.drums_too
+        self._apply_pitch()
+
+    def toggle_natural(self) -> None:
+        self.natural = not self.natural
+        self._apply_pitch()
+
+    def _apply_pitch(self) -> None:
+        shift = self.shift()
+        self.do("set_shift", shift)
+        for what, value in (("semitones", self.semitones), ("cents", self.cents)):
+            number = f"{value:+}".replace("-", "\N{MINUS SIGN}") if value else "0"
+            self._set(self.pitch_texts[what], text=f"{number} {what[:-1] if abs(value) == 1 else what}",
+                      fg=ACCENT if value else DIM)
+        for widget, on in ((self.drums_button, self.drums_too), (self.natural_button, self.natural)):
+            acts = on and shift is not None
+            self._set(widget, bg=ACCENT if acts else HOVER if on else BUTTON, fg=BG if acts else TEXT)
+
     # --- saving -----------------------------------------------------------
 
     def save(self) -> None:
-        """Save what is heard: the parts that are on, at their volumes."""
+        """Save what is heard: the parts that are on, at their volumes and pitch."""
         if not self.mixer or self.saving:
             return
         levels = self.levels()
@@ -378,6 +459,7 @@ class PlayerView(tk.Frame):
             self.say("Every part is off: there is nothing to save.")
             return
         name = safe_filename(self.title, 110) + mix_name({n: bool(v) for n, v in levels.items()})
+        name += pitch_name(100 * self.semitones + self.cents)
         start = Path(settings.load().get("save_dir") or DEFAULT_OUT)
         start.mkdir(parents=True, exist_ok=True)
         path = filedialog.asksaveasfilename(
@@ -391,9 +473,10 @@ class PlayerView(tk.Frame):
         self.saving = True
         self.save_button.configure(state="disabled")
         self.say(f"Saving {path.name}...")
-        threading.Thread(target=self._write, args=(path, levels, self.stems, self.key), daemon=True).start()
+        threading.Thread(target=self._write, args=(path, levels, self.shift(), self.stems, self.key),
+                         daemon=True).start()
 
-    def _write(self, path: Path, levels: list[float], stems: StemSet, key: str) -> None:
+    def _write(self, path: Path, levels: list[float], shift: Shift | None, stems: StemSet, key: str) -> None:
         try:
             from .remover import limit
 
@@ -402,7 +485,7 @@ class PlayerView(tk.Frame):
             if song and Path(song.source).is_file() and Path(song.source).resolve() != path.resolve():
                 tags = Path(song.source)
             with tempfile.TemporaryDirectory(prefix="zitto_", ignore_cleanup_errors=True) as tmp:
-                audio.encode(limit(mixdown(stems.data, stems.gain, levels)), path, Path(tmp), tags,
+                audio.encode(limit(mixdown(stems.data, stems.gain, levels, shift)), path, Path(tmp), tags,
                              title=song.title if song else "")
             self._results.append((True, f"Saved: {path.name}"))
         except Exception as e:

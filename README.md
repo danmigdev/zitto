@@ -54,10 +54,10 @@ Double-click `window.bat`.
 2. **Double-click** a song that is ready to open it. One that is still waiting goes to the
    front of the queue, and opens when it is ready.
 3. **Play** it, switching parts on and off, with a loop if you like.
-4. **Save...** writes the song as you hear it: parts that are on, at their volumes.
+4. **Save...** writes the song as you hear it: parts that are on, at their volumes and pitch.
 
 Each song is separated only once. Close the window whenever you like: at the next start the
-last song is there as you left it, with its parts, volumes and loop, and what was still
+last song is there as you left it, with its parts, volumes, pitch and loop, and what was still
 waiting goes on.
 
 The parts: lead voice, backing voices, drums, bass, guitar, piano, wind, other. The drums open
@@ -76,10 +76,22 @@ are the original.
 | open the drums, or the guitar, into their pieces | the arrow beside their name; mute and volume of a part act on all its pieces |
 | select a loop | drag on the waveform, then drag its edges to adjust |
 | move | click on the waveform |
+| change the pitch | − and + beside "semitones" and "cents"; the keys − and + for semitones; the wheel over a number |
 | zoom, scroll | wheel, Shift+wheel |
 | play/pause, rewind, loop on/off, clear loop, save | Space, Home, L, Esc, Ctrl+S |
 
 Stop and Rewind go back to the start of the loop, or of the song when there is no loop.
+
+### Pitch
+
+Raises or lowers the song while it plays, by up to 12 semitones and 100 cents more, at the same
+speed. **Save...** writes it that way. Each song remembers its own.
+
+- The drums stay as they are: they have no key, and sound better so. **Drums too** changes them as well
+- **Natural voice** keeps the timbre of the voices, which otherwise would sound smaller or bigger
+
+With 0 semitones and 0 cents the sound is exactly the one of the song. The farther from it, the
+more the change is heard.
 
 ### MIDI
 

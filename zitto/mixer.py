@@ -10,19 +10,28 @@ import threading
 
 import numpy as np
 
+from .pitch import Reader, Shift, Stem
+
 RATE = 44100
 FADE = 128  # samples (3 ms): long enough to hide a jump, short enough not to be heard
 MIN_LOOP = RATE // 20
+BLOCK = 4096  # samples shifted together when they are not heard
 
 PLAYING, PAUSED, STOPPED = "playing", "paused", "stopped"
 
 
-def mixdown(stems: list[np.ndarray], gain: float, levels: list[float]) -> np.ndarray:
-    """The whole song with the given level for each part, float32, not clipped."""
+def mixdown(stems: list[np.ndarray], gain: float, levels: list[float], shift: Shift | None = None) -> np.ndarray:
+    """The whole song with the given level for each part, float32, not clipped. `shift`: as in `set_shift`."""
     out = np.zeros(stems[0].shape, np.float32)
-    for stem, level in zip(stems, levels):
-        if level:
-            out += stem * np.float32(level * gain / 32768)
+    gains = [level * gain / 32768 for level in levels]
+    for i, stem in enumerate(stems):
+        if gains[i] and not (shift and shift.stems[i]):
+            out += stem * np.float32(gains[i])
+    if shift:
+        reader = Reader([Stem(s) for s in stems], 0, shift, gains)
+        for start in range(0, len(out), BLOCK):
+            part = out[start:start + BLOCK]
+            part += reader.read(len(part), gains)
     return out
 
 
@@ -31,6 +40,7 @@ class Mixer:
         """`stems`: int16 arrays of the same shape (samples, 2). `gain`: their overall level."""
         self.length = len(stems[0])
         self._stems = stems
+        self._shifting = [Stem(s) for s in stems]
         self._unit = gain / 32768
         self._lock = threading.Lock()
         self._wanted = [1.0] * len(stems)
@@ -41,6 +51,9 @@ class Mixer:
         self._park: int | None = None  # where to go once the gate has closed
         self._fade_from = 0
         self._fade_left = 0
+        self._shift: Shift | None = None
+        self._reader: Reader | None = None  # what shifts the stems from self._pos on
+        self._old_reader: Reader | None = None  # the same for self._fade_from
         self._loop: tuple[int, int] | None = None
         self._loop_on = False
 
@@ -125,6 +138,15 @@ class Mixer:
         with self._lock:
             self._wanted[index] = float(level)
 
+    def set_shift(self, shift: Shift | None) -> None:
+        """Change the pitch of some stems, also while they play. None: of none."""
+        if shift and not (shift.cents and any(shift.stems)):
+            shift = None
+        with self._lock:
+            before, self._shift = self._shift, shift
+            if (before and before.stems) != (shift and shift.stems):
+                self._leave()
+
     # --- helpers, called with the lock held -------------------------------
 
     def _home(self) -> int:
@@ -147,9 +169,14 @@ class Mixer:
             self._move(pos)
 
     def _move(self, pos: int) -> None:
-        if self._gate:
-            self._fade_from, self._fade_left = self._pos, FADE
+        self._leave()
         self._pos, self._park = pos, None
+
+    def _leave(self) -> None:
+        """Fade out what is being heard, while something else starts."""
+        if self._gate and self._fade_left < FADE:  # otherwise what replaced it has not been heard yet
+            self._fade_from, self._fade_left, self._old_reader = self._pos, FADE, self._reader
+        self._reader = None
 
     # --- audio ------------------------------------------------------------
 
@@ -157,28 +184,17 @@ class Mixer:
         """The next `frames` samples, float32 (frames, 2)."""
         out = np.zeros((frames, 2), np.float32)
         with self._lock:
-            gains = self._gains(frames)
+            before, gains = ([level * self._unit for level in levels] for levels in (self._level, self._wanted))
+            self._level = list(self._wanted)
+            ramp = np.linspace(0, 1, frames + 1, dtype=np.float32)[1:, None]  # from some to the others
             done = 0
             while done < frames:
                 n = self._advance_limit(frames - done)
                 if n == 0:
                     break
-                part = [g if np.isscalar(g) else g[done:done + n] for g in gains]
-                out[done:done + n] = self._chunk(n, part)
+                out[done:done + n] = self._chunk(n, before, gains, ramp[done:done + n])
                 done += n
         return np.clip(out, -1.0, 1.0, out=out)
-
-    def _gains(self, frames: int) -> list:
-        """Per-stem gain for this block: a number, or a ramp when it is changing."""
-        gains = []
-        for i, (now, wanted) in enumerate(zip(self._level, self._wanted)):
-            if now == wanted:
-                gains.append(np.float32(now * self._unit))
-            else:
-                ramp = np.linspace(now, wanted, frames + 1, dtype=np.float32)[1:, None]
-                gains.append(ramp * np.float32(self._unit))
-                self._level[i] = wanted
-        return gains
 
     def _advance_limit(self, n: int) -> int:
         """Handle what happens at the current position; return how far the audio is uniform."""
@@ -203,11 +219,18 @@ class Mixer:
             limits.append(FADE - self._gate)
         return min(limits)
 
-    def _chunk(self, n: int, gains: list) -> np.ndarray:
-        audio = self._mix(self._pos, n, gains)
+    def _chunk(self, n: int, *levels) -> np.ndarray:
+        """`levels`: those before this block, those wanted, and how far from the ones to the others."""
+        if self._shift is None:
+            self._reader = None
+        elif self._reader is None or self._reader.at != self._pos:
+            self._reader = Reader(self._shifting, self._pos, self._shift, levels[0])
+        else:
+            self._reader.shift = self._shift
+        audio = self._mix(self._pos, n, self._reader, *levels)
         if self._fade_left:
             w = (np.arange(n, dtype=np.float32) + (FADE - self._fade_left + 1))[:, None] / FADE
-            audio = audio * w + self._mix(self._fade_from, n, gains) * (1 - w)
+            audio = audio * w + self._mix(self._fade_from, n, self._old_reader, *levels) * (1 - w)
             self._fade_from += n
             self._fade_left -= n
         if self._state != PLAYING:
@@ -219,14 +242,20 @@ class Mixer:
         self._pos += n
         return audio
 
-    def _mix(self, pos: int, n: int, gains: list) -> np.ndarray:
+    def _mix(self, pos: int, n: int, reader: Reader | None, before: list[float], gains: list[float],
+             ramp: np.ndarray) -> np.ndarray:
+        """`n` samples from `pos` on. `reader`: what reads the stems that change pitch, if any does."""
         out = np.zeros((n, 2), np.float32)
         lo, hi = max(pos, 0), min(pos + n, self.length)
         if lo < hi:
-            part = out[lo - pos:hi - pos]
-            for stem, gain in zip(self._stems, gains):
-                if not np.isscalar(gain):
-                    part += stem[lo:hi] * gain[lo - pos:hi - pos]
+            part, rising = out[lo - pos:hi - pos], ramp[lo - pos:hi - pos]
+            for i, (stem, old, gain) in enumerate(zip(self._stems, before, gains)):
+                if reader and reader.shift.stems[i]:
+                    continue
+                if old != gain:
+                    part += stem[lo:hi] * (np.float32(old) + np.float32(gain - old) * rising)
                 elif gain:
-                    part += stem[lo:hi] * gain
+                    part += stem[lo:hi] * np.float32(gain)
+        if reader:
+            out += reader.read(n, gains, before, ramp)
         return out
