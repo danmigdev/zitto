@@ -3,7 +3,7 @@
 #   mac_app.sh FILE.dmg
 # Pictures of the screen go to shots/.
 set -u
-before=https://github.com/danmigdev/zitto/releases/download/v0.4.0/zitto-0.4.0-mac.dmg
+before=https://github.com/danmigdev/zitto/releases/download/v0.5.0/zitto-0.5.0-mac.dmg
 app=/Applications/zitto.app
 home="$HOME/Library/Application Support/zitto"
 lead=mel_band_roformer_karaoke_becruily.ckpt drums=MDX23C-DrumSep-aufr33-jarredou.ckpt wind=17_HP-Wind_Inst-UVR.pth
