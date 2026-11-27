@@ -465,13 +465,14 @@ def test_pitch_name(cents, name):
 
 # --- parts and pieces ------------------------------------------------------------------
 
-PIECED = ("lead", "kick", "snare", "toms", "cymbals", "bass")
+PIECED = ("piano", "kick", "snare", "toms", "cymbals", "bass")
 
 
 def test_the_pieces_follow_their_part():
-    assert controls(PIECED) == [("lead", None), ("drums", None), ("kick", 1), ("snare", 1), ("toms", 1),
+    assert controls(PIECED) == [("piano", None), ("drums", None), ("kick", 1), ("snare", 1), ("toms", 1),
                                 ("cymbals", 1), ("bass", None)]
-    assert controls(("lead", "drums", "bass")) == [("lead", None), ("drums", None), ("bass", None)]
+    assert controls(("piano", "drums", "bass")) == [("piano", None), ("drums", None), ("bass", None)]
+    assert controls(("lead", "backing", "drums")) == [("voice", None), ("lead", 0), ("backing", 0), ("drums", None)]
 
 
 def sounding(off=(), solo=()):
@@ -481,12 +482,12 @@ def sounding(off=(), solo=()):
 
 
 def test_muting_and_soloing_parts_and_pieces():
-    everything = {"lead", "drums", "kick", "snare", "toms", "cymbals", "bass"}
+    everything = {"piano", "drums", "kick", "snare", "toms", "cymbals", "bass"}
     assert sounding() == everything
     assert sounding(off=("kick",)) == everything - {"kick"}
-    assert sounding(off=("drums",)) == {"lead", "bass"}
-    assert sounding(off=("kick", "snare", "toms", "cymbals")) == {"lead", "bass"}  # the part too is silent
-    assert sounding(solo=("drums",)) == everything - {"lead", "bass"}
+    assert sounding(off=("drums",)) == {"piano", "bass"}
+    assert sounding(off=("kick", "snare", "toms", "cymbals")) == {"piano", "bass"}  # the part too is silent
+    assert sounding(solo=("drums",)) == everything - {"piano", "bass"}
     assert sounding(solo=("kick", "bass")) == {"drums", "kick", "bass"}
     assert sounding(solo=("drums", "kick")) == {"drums", "kick"}  # the piece wins
     assert sounding(solo=("kick",), off=("drums",)) == set()

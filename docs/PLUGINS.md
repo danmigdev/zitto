@@ -130,10 +130,10 @@ def my_models():
 - `guitar`, if it is given, finds `acoustic` inside the guitar. The electric one is the rest
 - `main` runs in order on the song, each model on what the others left. Together they must find
   at least `voice`
-- `lead` finds the lead voice inside the voice, `wind` the wind instruments in what is left. Both can
-  be left out: without `lead`, the voice is one part
-- The dictionary says what each part is called inside the model. The parts are `voice`, `lead`,
-  `drums`, `bass`, `guitar`, `piano`, `wind`, `other`; the window shows those that are found
+- `lead` finds the lead voice inside the voice; the backing voices are the rest. `wind` finds the wind
+  instruments in what is left. Both can be left out: without `lead`, the voice has no pieces
+- The dictionary says what each part is called inside the model. The parts are `voice`, `drums`,
+  `bass`, `guitar`, `piano`, `wind`, `other`; the window shows those that are found
 - The file is one that [audio-separator](https://github.com/nomadkaraoke/python-audio-separator)
   can run. Read the terms of its weights: the licence of the code often does not cover them
 

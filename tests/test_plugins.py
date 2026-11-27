@@ -88,7 +88,7 @@ def test_the_models_say_their_terms(chosen):
 
 
 def test_the_default_models_find_every_part():
-    assert models.current() is models.DEFAULT and ("voice", *models.parts()) == models.NAMES
+    assert models.current() is models.DEFAULT and models.parts() == models.NAMES
     assert targets.available() == targets.TARGETS
     assert models.stems() == ("lead", "backing", "kick", "snare", "toms", "cymbals", "bass", "acoustic", "electric",
                               "piano", "wind", "other")
@@ -103,7 +103,8 @@ def test_models_with_stated_terms_can_be_asked_for(monkeypatch):
 
 def test_only_the_parts_the_models_can_find_are_offered(monkeypatch):
     monkeypatch.setenv("ZITTO_MODELS", "stated")
-    assert models.parts() == models.stems() == ("lead", "backing", "drums", "bass", "wind", "other")
+    assert models.parts() == ("voice", "drums", "bass", "wind", "other")
+    assert models.stems() == ("lead", "backing", "drums", "bass", "wind", "other")
     assert [t.key for t in targets.available()] == ["voice", "lead-voice", "drums", "bass", "wind", "other"]
     with pytest.raises(targets.UnknownTarget, match="Choose from: voice"):
         targets.resolve(["piano"])
@@ -113,7 +114,8 @@ def test_a_plugin_can_bring_other_models(monkeypatch):
     full = models.Model("Full", "full.ckpt", {"voice": "v", "drums": "d", "piano": "p"})
     other = models.ModelSet((full,), models.LEAD, models.WIND)
     monkeypatch.setattr(plugins, "model_set", lambda: other)
-    assert models.parts() == ("lead", "backing", "drums", "piano", "wind", "other")
+    assert models.parts() == ("voice", "drums", "piano", "wind", "other")
+    assert models.stems() == ("lead", "backing", "drums", "piano", "wind", "other")
     assert targets.plan(targets.resolve(["voice", "piano"])) == [(full, targets.resolve(["voice", "piano"]))]
 
 

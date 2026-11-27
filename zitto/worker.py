@@ -44,20 +44,17 @@ def split(mix: np.ndarray, engine, workdir: Path, status: Status) -> dict[str, n
         got = stems(rest, model, parts, text)
         rest = rest - sum(got.values())
         found |= got
-    if models.lead:
-        voice = found.pop("voice")
-        lead = stems(voice, models.lead, ["lead"], "Separating the voices")["lead"]
-        found |= {"lead": lead, "backing": voice - lead}
     if models.wind:
         wind = stems(rest, models.wind, ["wind"], "Separating the wind instruments")["wind"]
         found["wind"] = wind
         rest = rest - wind
     found["other"] = rest
     for part, (*pieces, last) in PIECES.items():
-        model = getattr(models, part)
+        model = models.opener(part)
         if model and part in found:
             rest = found.pop(part)
-            got = stems(rest, model, pieces, f"Separating the {LABELS[part].lower()}")
+            what = "voices" if part == "voice" else LABELS[part].lower()
+            got = stems(rest, model, pieces, f"Separating the {what}")
             found |= got | {last: rest - sum(got.values())}
     return {name: found[name] for name in STEMS if name in found}
 

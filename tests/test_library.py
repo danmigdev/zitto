@@ -166,9 +166,10 @@ def test_voices_come_from_the_voice_and_wind_from_what_is_left(tmp_path):
     mix = np.full((100, 2), 0.4, np.float32)
     fake = engine()
     parts = worker.split(mix, fake, tmp_path, lambda s: None)
-    assert [c[0] for c in fake.calls] == [FULL, LEAD, WIND, DRUMS, GUITAR] and tuple(parts) == models.stems()
-    np.testing.assert_allclose(fake.calls[1][2], mix * 0.4, rtol=1e-5)
-    np.testing.assert_allclose(fake.calls[2][2], mix * 0.2, rtol=1e-5)
+    assert [c[0] for c in fake.calls] == [FULL, WIND, LEAD, DRUMS, GUITAR] and tuple(parts) == models.stems()
+    np.testing.assert_allclose(fake.calls[1][2], mix * 0.2, rtol=1e-5)  # what the main model left
+    np.testing.assert_allclose(fake.calls[2][2], mix * 0.4, rtol=1e-5)  # the voice
+    np.testing.assert_allclose(parts["backing"], mix * 0.4 * 0.25, rtol=1e-5)  # what the lead leaves
     np.testing.assert_allclose(fake.calls[3][2], mix * 0.2, rtol=1e-5)  # the drums
     np.testing.assert_allclose(parts["cymbals"], mix * 0.2 * 0.2, rtol=1e-5)  # what the other pieces leave
     np.testing.assert_allclose(fake.calls[4][2], mix * 0.05, rtol=1e-5)  # the guitar
@@ -181,10 +182,10 @@ def test_several_models_work_each_on_what_the_others_left(tmp_path, monkeypatch)
     mix = np.full((100, 2), 0.4, np.float32)
     fake = engine()
     parts = worker.split(mix, fake, tmp_path, lambda s: None)
-    assert [c[0] for c in fake.calls] == [VOICE, BAND, STATED_LEAD, WIND] and "drums" in parts
+    assert [c[0] for c in fake.calls] == [VOICE, BAND, WIND, STATED_LEAD] and "drums" in parts
     np.testing.assert_allclose(fake.calls[1][2], mix * 0.6, rtol=1e-5)  # without the voice
-    np.testing.assert_allclose(fake.calls[2][2], mix * 0.4, rtol=1e-5)
-    np.testing.assert_allclose(fake.calls[3][2], mix * 0.6 * 0.7, rtol=1e-5)
+    np.testing.assert_allclose(fake.calls[2][2], mix * 0.6 * 0.7, rtol=1e-5)
+    np.testing.assert_allclose(fake.calls[3][2], mix * 0.4, rtol=1e-5)
     np.testing.assert_allclose(sum(parts.values()), mix, rtol=1e-5)
 
 
@@ -196,7 +197,7 @@ def test_a_song_separated_without_some_models(song_file, tmp_path, without):
     song, fake = library.add(str(path)), engine()
     run_worker(tmp_path, fake)
     left_out = {{"lead": LEAD, "wind": WIND, "drums": DRUMS, "guitar": GUITAR}[name] for name in without}
-    assert [c[0] for c in fake.calls] == [m for m in (FULL, LEAD, WIND, DRUMS, GUITAR) if m not in left_out]
+    assert [c[0] for c in fake.calls] == [m for m in (FULL, WIND, LEAD, DRUMS, GUITAR) if m not in left_out]
     stems = library.load_stems(song.key)
     assert stems.names == models.stems() and ("voice" in stems.names) == ("lead" in without)
     np.testing.assert_allclose(mixdown(stems.data, stems.gain, [1.0] * len(stems.data)), mix, atol=4e-4)

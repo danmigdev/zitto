@@ -60,9 +60,9 @@ Each song is separated only once. Close the window whenever you like: at the nex
 last song is there as you left it, with its parts, volumes, pitch and loop, and what was still
 waiting goes on.
 
-The parts: lead voice, backing voices, drums, bass, guitar, piano, wind, other. The drums open
-into kick, snare, toms and cymbals, the guitar into acoustic and electric. All of them together
-are the original.
+The parts: voice, drums, bass, guitar, piano, wind, other. The voice opens into lead and backing
+voices, the drums into kick, snare, toms and cymbals, the guitar into acoustic and electric. All
+of them together are the original.
 
 ### Player
 
@@ -73,7 +73,7 @@ are the original.
 | mute a part | M, or click its name, or its number on the keyboard |
 | hear only some | S (solo); a muted part stays silent also when soloed |
 | set its volume | drag the line under its name |
-| open the drums, or the guitar, into their pieces | the arrow beside their name; mute and volume of a part act on all its pieces |
+| open the voice, the drums or the guitar into their pieces | the arrow beside their name; mute and volume of a part act on all its pieces |
 | select a loop | drag on the waveform, then drag its edges to adjust |
 | move | click on the waveform |
 | change the pitch | − and + beside "semitones" and "cents"; the keys − and + for semitones; the wheel over a number |

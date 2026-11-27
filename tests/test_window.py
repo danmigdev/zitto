@@ -13,7 +13,7 @@ from zitto.parts import target
 from zitto.waveform import HOP, columns, draw_lane, peaks
 
 N = 44100 * 4
-PARTS = models.NAMES[1:]  # those of the default models: the voice is in two
+PARTS = models.NAMES  # of a song in which no part is in pieces
 
 pytestmark = pytest.mark.usefixtures("links")
 
@@ -183,13 +183,13 @@ def test_mute_and_solo(window):
     app.open(key)
     until(app, lambda: app.player.key == key)
     p = app.player
-    p.toggle_part(2)
+    p.toggle_part(1)
     assert p.audible() == [n != "drums" for n in PARTS]
-    p.toggle_solo(3)
+    p.toggle_solo(2)
     assert p.audible() == [n == "bass" for n in PARTS]
-    p.toggle_solo(2)  # muted: silent also when soloed
+    p.toggle_solo(1)  # muted: silent also when soloed
     assert p.audible() == [n == "bass" for n in PARTS]
-    p.toggle_part(2)
+    p.toggle_part(1)
     assert p.audible() == [n in ("drums", "bass") for n in PARTS]
     assert p.mixer._wanted == [1.0 if n in ("drums", "bass") else 0.0 for n in PARTS]
 
@@ -200,7 +200,7 @@ def test_controls_act_where_they_are_drawn(window):
     app.open(key)
     until(app, lambda: app.player.key == key)
     p = app.player
-    p.parts.place_rows([(22 + 60 * i, 60) for i in range(8)])
+    p.parts.place_rows([(22 + 60 * i, 60) for i in range(7)])
     press = lambda item, row: p.parts._press(type("E", (), dict(zip(("x", "y"), middle(p.parts, item, row)))))
 
     def middle(canvas, item, row):
@@ -226,18 +226,18 @@ def test_songs_can_have_different_parts(window):
     app.open(first)
     until(app, lambda: p.key == first)
     assert p.names == PARTS
-    p.toggle_part(7)
+    p.toggle_part(6)
     app.open(second)
     until(app, lambda: p.key == second)
-    assert p.names == few and p.on == [True] * len(few) and len(p.parts._rows) == len(few)
-    p.toggle_main(7)  # a key with no part
-    p.toggle_part(1)
-    assert p.audible() == [n != "backing" for n in few]
+    assert p.names == ("voice", *few) and all(p.on) and len(p.parts._rows) == len(few) - 1  # the voice closed
+    p.toggle_main(6)  # a key with no part
+    p.toggle_part(p.names.index("backing"))
+    assert p.audible() == [n != "backing" for n in p.names]
     app.open(first)
     until(app, lambda: p.key == first)
-    assert p.on == [True] * 7 + [False]
+    assert p.on == [True] * 6 + [False]
     p.leave()
-    assert list(library.load_state(second)["on"]) == list(few)
+    assert list(library.load_state(second)["on"]) == ["voice", *few]
 
 
 def test_every_stem_has_a_name_and_a_colour():
@@ -261,21 +261,21 @@ def test_the_drums_open_into_their_pieces(window):
     p = app.player
     app.open(key)
     until(app, lambda: p.key == key)
-    assert len(p.parts._rows) == 8 and len(p.names) == 14 and "arrow" in p.parts._rows[2]
-    p.toggle_main(2)  # the key of the drums
+    assert len(p.parts._rows) == 7 and len(p.names) == 15 and "arrow" in p.parts._rows[1]
+    p.toggle_main(1)  # the key of the drums
     kick, bass = p.names.index("kick"), p.names.index("bass")
     level = lambda stem: p.mixer._wanted[models.stems().index(stem)]
     assert [level(s) for s in ("kick", "snare", "toms", "cymbals", "bass")] == [0, 0, 0, 0, 1]
-    p.toggle_main(2)
-    p.toggle_main(3)  # the next part, not a piece
+    p.toggle_main(1)
+    p.toggle_main(2)  # the next part, not a piece
     assert not p.on[bass] and all(p.on[kick:kick + 4])
-    p.toggle_main(3)
+    p.toggle_main(2)
 
     p.wave._set_view(N // 4, 100)
     view = p.wave._first, p.wave._per_pixel
     p.toggle_pieces("drums")
     app.root.update()
-    assert len(p.parts._rows) == len(p.wave._peaks) == 12 and (p.wave._first, p.wave._per_pixel) == view
+    assert len(p.parts._rows) == len(p.wave._peaks) == 11 and (p.wave._first, p.wave._per_pixel) == view
     p.toggle_part(kick)
     p.set_volume(p.names.index("drums"), 0.5)
     p.set_volume(p.names.index("snare"), 0.5)
@@ -284,12 +284,12 @@ def test_the_drums_open_into_their_pieces(window):
 
     app.open(other)
     until(app, lambda: p.key == other)
-    assert p.names == PARTS and len(p.parts._rows) == len(p.wave._peaks) == 8 and p.mixer._wanted == [1.0] * 8
+    assert p.names == PARTS and len(p.parts._rows) == len(p.wave._peaks) == 7 and p.mixer._wanted == [1.0] * 7
     app.open(key)
     until(app, lambda: p.key == key)
-    assert p.opened == {"drums"} and len(p.parts._rows) == 12 and level("kick") == 0
+    assert p.opened == {"drums"} and len(p.parts._rows) == 11 and level("kick") == 0
     p.toggle_pieces("drums")
-    assert len(p.parts._rows) == len(p.wave._peaks) == 8 and level("kick") == 0  # hidden, not switched on again
+    assert len(p.parts._rows) == len(p.wave._peaks) == 7 and level("kick") == 0  # hidden, not switched on again
 
 
 def test_the_guitar_opens_too(window):
@@ -299,10 +299,10 @@ def test_the_guitar_opens_too(window):
     app.open(key)
     until(app, lambda: p.key == key)
     p.toggle_pieces("guitar")
-    assert len(p.parts._rows) == 10
+    assert len(p.parts._rows) == 9
     p.toggle_pieces("drums")
     app.root.update()
-    assert len(p.parts._rows) == len(p.wave._peaks) == 14 and p.opened == {"drums", "guitar"}
+    assert len(p.parts._rows) == len(p.wave._peaks) == 13 and p.opened == {"drums", "guitar"}
     p.toggle_part(p.names.index("acoustic"))
     sounding = dict(zip(p.names, p.audible()))
     assert not sounding["acoustic"] and sounding["electric"] and sounding["guitar"] and sounding["kick"]
@@ -314,21 +314,54 @@ def test_the_guitar_opens_too(window):
     assert library.load_state(key)["opened"] == ["drums", "guitar"]
 
 
+def test_the_voice_opens_into_lead_and_backing(window):
+    key = make_song("a", "Alpha", names=models.stems())
+    app = window()
+    p = app.player
+    app.open(key)
+    until(app, lambda: p.key == key)
+    assert p.names[:3] == ("voice", "lead", "backing") and p.opened == set() and "arrow" in p.parts._rows[0]
+    level = lambda stem: p.mixer._wanted[models.stems().index(stem)]
+    p.toggle_main(0)  # all the singing
+    assert level("lead") == level("backing") == 0 and level("kick") == 1
+    assert player.mix_name({n: a for n, a in zip(p.names, p.audible()) if n in models.stems()}) == " (no voice)"
+    p.toggle_main(0)
+    p.toggle_pieces("voice")
+    assert len(p.parts._rows) == len(p.wave._peaks) == 9
+    p.toggle_part(p.names.index("lead"))
+    assert level("lead") == 0 and level("backing") == 1 and p.audible()[0]
+    p.leave()
+    assert library.load_state(key)["opened"] == ["voice"]
+
+
+def test_a_song_left_with_lead_and_backing_apart_opens_so(window):
+    """As they were before the voice had them as pieces."""
+    key = make_song("a", "Alpha", names=models.stems())
+    on = {name: name != "lead" for name, _ in player.controls(models.stems()) if name != "voice"}
+    library.save_state(key, {"on": on, "opened": []})
+    app = window()
+    p = app.player
+    app.open(key)
+    until(app, lambda: p.key == key)
+    assert p.opened == {"voice"} and not p.on[p.names.index("lead")] and len(p.parts._rows) == 9
+
+
 def test_the_arrow_opens_the_drums(window):
     key = make_song("a", "Alpha", names=models.stems())
     app = window()
     app.open(key)
     until(app, lambda: app.player.key == key)
     p = app.player
-    p.parts.place_rows([(22 + 60 * i, 60) for i in range(8)])
-    x, y = p.parts.coords(p.parts._rows[2]["arrow"])
+    p.parts.place_rows([(22 + 60 * i, 60) for i in range(7)])
+    x, y = p.parts.coords(p.parts._rows[1]["arrow"])
     p.parts._press(type("E", (), {"x": x, "y": y}))
     assert p.opened == {"drums"} and all(p.on)
-    p.parts.place_rows([(22 + 34 * i, 34) for i in range(12)])  # low rows: M and S side by side
+    p.parts.place_rows([(22 + 34 * i, 34) for i in range(11)])  # low rows: M and S side by side
+    snare = p.names.index("snare")
     for item in ("mute", "solo"):
-        x0, y0, x1, y1 = p.parts.coords(p.parts._rows[4][item])
+        x0, y0, x1, y1 = p.parts.coords(p.parts._rows[p.rows.index(snare)][item])
         p.parts._press(type("E", (), {"x": (x0 + x1) / 2, "y": (y0 + y1) / 2}))
-    assert not p.on[4] and p.solo[4] and sum(p.solo) == 1
+    assert not p.on[snare] and p.solo[snare] and sum(p.solo) == 1
 
 
 @pytest.mark.parametrize("x, y, what", [
@@ -447,7 +480,7 @@ def test_the_pitch_is_in_what_is_saved(window, monkeypatch, tmp_path):
     assert asked["initialfile"] == "Alpha (no drums) (-3 semitones).mp3"
     expected = player.mixdown(p.stems.data, p.stems.gain, list(p.levels().values()),
                               player.Shift(-300, tuple(n != "drums" for n in PARTS),
-                                           tuple(n in ("lead", "backing") for n in PARTS)))
+                                           tuple(n == "voice" for n in PARTS)))
     np.testing.assert_allclose(written[0], expected, atol=1e-6)
 
 

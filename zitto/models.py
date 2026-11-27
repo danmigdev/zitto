@@ -11,15 +11,15 @@ from dataclasses import dataclass, field, replace
 
 from . import plugins, settings
 
-# The parts of a song, in the order they are shown. A set of models may tell apart only some: where none
-# finds the lead voice, all the voices together are "voice".
-NAMES = ("voice", "lead", "backing", "drums", "bass", "guitar", "piano", "wind", "other")
+# The parts of a song, in the order they are shown. A set of models may tell apart only some, and not their pieces.
+NAMES = ("voice", "drums", "bass", "guitar", "piano", "wind", "other")
 LABELS = {"voice": "Voice", "lead": "Lead voice", "backing": "Backing voices", "drums": "Drums",
           "bass": "Bass", "guitar": "Guitar", "piano": "Piano", "wind": "Wind", "other": "Other",
           "kick": "Kick", "snare": "Snare", "toms": "Toms", "cymbals": "Cymbals",
           "acoustic": "Acoustic", "electric": "Electric"}
 # Parts that can be stored as pieces. The last piece is what the others leave.
-PIECES = {"drums": ("kick", "snare", "toms", "cymbals"), "guitar": ("acoustic", "electric")}
+PIECES = {"voice": ("lead", "backing"), "drums": ("kick", "snare", "toms", "cymbals"),
+          "guitar": ("acoustic", "electric")}
 STEMS = tuple(s for n in NAMES for s in (*PIECES.get(n, ()), n))  # all that can be stored, in order
 
 
@@ -44,6 +44,10 @@ class ModelSet:
 
     def all(self) -> tuple[Model, ...]:
         return (*self.main, *filter(None, [self.lead, self.wind, self.drums, self.guitar]))
+
+    def opener(self, part: str) -> Model | None:
+        """The model that finds the pieces of a part. That of the voice finds the lead."""
+        return getattr(self, "lead" if part == "voice" else part) if part in PIECES else None
 
 
 _UVR = {"terms": "MIT, with credit to UVR and its developers (as their README asks)",
@@ -101,8 +105,6 @@ def parts() -> tuple[str, ...]:
     """The parts that the current models tell apart."""
     chosen = current()
     found = {"other"}.union(*(m.parts for m in chosen.main))
-    if chosen.lead:
-        found = found - {"voice"} | {"lead", "backing"}
     if chosen.wind:
         found.add("wind")
     return tuple(n for n in NAMES if n in found)
@@ -111,7 +113,7 @@ def parts() -> tuple[str, ...]:
 def stems() -> tuple[str, ...]:
     """What is stored of a song separated now: its parts, or their pieces."""
     chosen = current()
-    return tuple(s for n in parts() for s in (PIECES[n] if getattr(chosen, n, None) and n in PIECES else (n,)))
+    return tuple(s for n in parts() for s in (PIECES[n] if chosen.opener(n) else (n,)))
 
 
 def whole(stem: str) -> str | None:

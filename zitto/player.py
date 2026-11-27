@@ -67,8 +67,6 @@ def mix_name(audible: dict[str, bool]) -> str:
         return names
 
     def words(names):
-        if "lead" in names and "backing" in names:
-            names = ["voice"] + [n for n in names if n not in ("lead", "backing")]
         shown = {"lead": "lead voice", "backing": "backing voices", "acoustic": "acoustic guitar",
                  "electric": "electric guitar"}
         return ", ".join(shown.get(n, n) for n in names)
@@ -331,8 +329,10 @@ class PlayerView(tk.Frame):
             values = state.get(kind)
             return values.get(name, default) if isinstance(values, dict) else default
 
-        opened = state.get("opened")
+        opened, on = state.get("opened"), state.get("on")
         opened = set(opened) & set(PIECES) if isinstance(opened, list) else set()
+        if isinstance(on, dict):  # pieces saved without their part were rows of their own, as lead and backing once
+            opened |= {part for part, pieces in PIECES.items() if part not in on and any(p in on for p in pieces)}
         if opened != self.opened:
             self.opened = opened
             self._build_rows()
